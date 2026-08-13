@@ -6,7 +6,18 @@ export async function PUT(request, { params }) {
     const { id } = await params;
     const body = await request.json();
 
-    if (!body.date || !body.driver || !body.routeFrom || !body.routeTo || !body.departureTime || !body.departureKm || !body.arrivalTime || !body.arrivalKm) {
+    // Basic validation (allowing 0 as a valid KM value)
+    const hasMissingFields = 
+      !body.date || 
+      !body.driver || 
+      !body.routeFrom || 
+      !body.routeTo || 
+      !body.departureTime || 
+      !body.arrivalTime ||
+      body.departureKm === undefined || body.departureKm === null || body.departureKm === '' ||
+      body.arrivalKm === undefined || body.arrivalKm === null || body.arrivalKm === '';
+
+    if (hasMissingFields) {
       return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 });
     }
 

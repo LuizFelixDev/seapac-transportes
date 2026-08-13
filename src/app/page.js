@@ -105,6 +105,18 @@ export default function Dashboard() {
     return vehicles.find(v => v.id === activeVehicleId) || null;
   }, [vehicles, activeVehicleId]);
 
+  // Get most recent trip recorded for the active vehicle
+  const lastTrip = useMemo(() => {
+    if (!Array.isArray(trips) || trips.length === 0) return null;
+    const vehicleTrips = trips.filter(t => t.vehicleId === activeVehicleId);
+    if (vehicleTrips.length === 0) return null;
+    return [...vehicleTrips].sort((a, b) => {
+      const dateDiff = new Date(b.date) - new Date(a.date);
+      if (dateDiff !== 0) return dateDiff;
+      return b.departureTime.localeCompare(a.departureTime);
+    })[0];
+  }, [trips, activeVehicleId]);
+
   // Filtered trips for calculation and display
   const filteredTrips = useMemo(() => {
     if (!Array.isArray(trips)) return [];
@@ -247,6 +259,11 @@ export default function Dashboard() {
         const updatedData = await updatedRes.json();
         setTrips(Array.isArray(updatedData) ? updatedData : []);
         
+        // Auto-switch dashboard active vehicle to the saved trip's vehicle to keep it in view
+        if (formData.vehicleId) {
+          setActiveVehicleId(formData.vehicleId);
+        }
+
         setIsTripModalOpen(false);
         setSelectedTrip(null);
       } else {
@@ -285,6 +302,7 @@ export default function Dashboard() {
         const newVehicle = await response.json();
         setVehicles([...vehicles, newVehicle]);
         setActiveVehicleId(newVehicle.id);
+        return newVehicle;
       }
     } catch (error) {
       console.error('Erro ao cadastrar veículo:', error);
@@ -786,7 +804,10 @@ export default function Dashboard() {
         onClose={() => { setIsTripModalOpen(false); setSelectedTrip(null); }}
         onSubmit={handleCreateOrUpdateTrip}
         trip={selectedTrip}
+        lastTrip={lastTrip}
         drivers={drivers}
+        vehicles={vehicles}
+        onAddVehicle={handleCreateVehicle}
         activeVehicleId={activeVehicleId}
       />
 
