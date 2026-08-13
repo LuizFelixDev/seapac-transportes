@@ -599,6 +599,7 @@ table.data-table tbody tr:hover {
   width: 100%;
   max-width: 650px;
   max-height: 90vh;
+  background-color: hsl(var(--card)) !important;
   border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
   overflow-y: auto;
@@ -915,4 +916,33 @@ table.data-table tbody tr:hover {
 /* Default print styling hidden in screen view */
 .print-only-header {
   display: none;
+}
+
+/* Leaflet Dark Mode Tiles & Adjustments */
+[data-theme='dark'] .leaflet-tile-container {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+[data-theme='dark'] .leaflet-container {
+  background: #121915 !important;
+}
+[data-theme='dark'] .leaflet-bar a {
+  background-color: hsl(var(--card)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+[data-theme='dark'] .leaflet-bar a:hover {
+  background-color: hsl(var(--border)) !important;
+}
+[data-theme='dark'] .leaflet-popup-content-wrapper,
+[data-theme='dark'] .leaflet-popup-tip {
+  background: hsl(var(--card)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Map Picker Address Search Auto-complete Hover */
+.suggestion-item {
+  transition: background-color 0.15s ease;
+}
+.suggestion-item:hover {
+  background-color: hsl(var(--muted)) !important;
 }
