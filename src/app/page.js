@@ -905,14 +905,16 @@ export default function Dashboard() {
                           >
                             <Edit3 size={14} />
                           </button>
-                          <button 
-                            className="btn btn-secondary btn-icon" 
-                            style={{ padding: '0.35rem', color: '#ef4444' }} 
-                            onClick={() => handleDeleteTrip(t.id)}
-                            title="Excluir Viagem"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {user?.role === 'adm' && (
+                            <button 
+                              className="btn btn-secondary btn-icon" 
+                              style={{ padding: '0.35rem', color: '#ef4444' }} 
+                              onClick={() => handleDeleteTrip(t.id)}
+                              title="Excluir Viagem"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
