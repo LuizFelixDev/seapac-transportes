@@ -1,42 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import crypto from 'crypto';
 import { getUserByEmail } from '@/lib/db';
-
-const ALGORITHM = 'aes-256-gcm';
-const IV_LENGTH = 12;
-const SECRET_KEY = process.env.SESSION_SECRET 
-  ? crypto.createHash('sha256').update(process.env.SESSION_SECRET).digest()
-  : crypto.createHash('sha256').update('seapac-fallback-secret-key-32-chars').digest();
-
-// Helper to encrypt session data
-function encrypt(text) {
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  const tag = cipher.getAuthTag();
-  return `${iv.toString('hex')}:${tag.toString('hex')}:${encrypted}`;
-}
-
-// Helper to decrypt session data
-function decrypt(text) {
-  try {
-    const parts = text.split(':');
-    if (parts.length !== 3) return null;
-    const iv = Buffer.from(parts[0], 'hex');
-    const tag = Buffer.from(parts[1], 'hex');
-    const encryptedText = parts[2];
-    const decipher = crypto.createDecipheriv(ALGORITHM, SECRET_KEY, iv);
-    decipher.setAuthTag(tag);
-    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-  } catch (err) {
-    console.error('Failed to decrypt session cookie:', err);
-    return null;
-  }
-}
+import { encrypt, decrypt } from '@/lib/session';
 
 export async function GET() {
   try {
