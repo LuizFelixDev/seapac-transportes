@@ -39,6 +39,16 @@ async function ensureSchema() {
       );
     `;
 
+    // Criar tabela de usuários autorizados
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        role TEXT NOT NULL CHECK (role IN ('adm', 'normal'))
+      );
+    `;
+
     // 3. Criar tabela de viagens
     await sql`
       CREATE TABLE IF NOT EXISTS trips (
@@ -92,6 +102,21 @@ async function ensureSchema() {
           ('1', 'Francisco Silva'),
           ('2', 'Maria Sousa'),
           ('3', 'João Medeiros');
+      `;
+    }
+
+    const usersCount = await sql`SELECT COUNT(*)::int FROM users`;
+    if (usersCount[0].count === 0) {
+      await sql`
+        INSERT INTO users (id, name, email, role)
+        VALUES 
+          ('1', 'Administrador SEAPAC', 'admin@seapac.org', 'adm'),
+          ('2', 'Francisco Silva', 'francisco.silva@seapac.org', 'normal'),
+          ('3', 'Maria Sousa', 'maria.sousa@seapac.org', 'normal'),
+          ('4', 'João Medeiros', 'joao.medeiros@seapac.org', 'normal'),
+          ('5', 'Luiz Felix', 'luiz.felix@seapac.org', 'adm'),
+          ('6', 'Luiz Felix', 'luiz-felix@gmail.com', 'adm'),
+          ('7', 'Francisco Teste', 'francisco.teste@gmail.com', 'normal')
       `;
     }
 
@@ -312,5 +337,59 @@ export async function deleteDriver(id) {
   const db = getClient();
   
   const result = await db`DELETE FROM drivers WHERE id = ${id} RETURNING id`;
+  return result.length > 0;
+}
+
+// --- USERS CRUD ---
+export async function getUsers() {
+  await ensureSchema();
+  const db = getClient();
+  return await db`SELECT * FROM users ORDER BY name ASC`;
+}
+
+export async function getUserByEmail(email) {
+  await ensureSchema();
+  const db = getClient();
+  const result = await db`SELECT * FROM users WHERE LOWER(email) = ${email.toLowerCase()}`;
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function addUser(user) {
+  await ensureSchema();
+  const db = getClient();
+  const id = crypto.randomUUID();
+  
+  await db`
+    INSERT INTO users (id, name, email, role)
+    VALUES (${id}, ${user.name}, ${user.email}, ${user.role})
+  `;
+  
+  return {
+    ...user,
+    id
+  };
+}
+
+export async function updateUser(id, updatedUser) {
+  await ensureSchema();
+  const db = getClient();
+  
+  const result = await db`
+    UPDATE users
+    SET name = ${updatedUser.name},
+        email = ${updatedUser.email},
+        role = ${updatedUser.role}
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function deleteUser(id) {
+  await ensureSchema();
+  const db = getClient();
+  
+  const result = await db`DELETE FROM users WHERE id = ${id} RETURNING id`;
   return result.length > 0;
 }
