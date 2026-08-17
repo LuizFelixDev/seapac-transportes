@@ -170,15 +170,11 @@ export default function UserManagementModal({ isOpen, onClose, currentUserEmail 
   };
 
   const handleApproveRequest = async (reqId, requestName, requestEmail) => {
-    let assignedRole = 'normal';
-    if (confirm(`Deseja aprovar ${requestName} (${requestEmail}) como ADMINISTRADOR?\n\n(Clique em Cancelar para aprovar com perfil NORMAL)`)) {
-      // Second warning prompt for admin role elevation
-      if (confirm(`⚠️ ATENÇÃO: Tem certeza absoluta que deseja conceder acesso de ADMINISTRADOR (Acesso Total) para o usuário "${requestName}"?`)) {
-        assignedRole = 'adm';
-      } else {
-        assignedRole = 'normal';
-      }
+    if (!confirm(`Tem certeza que deseja aprovar a solicitação de acesso para o usuário "${requestName}" (${requestEmail})?`)) {
+      return;
     }
+
+    const assignedRole = 'normal';
 
     setActionLoading(true);
     setError('');
