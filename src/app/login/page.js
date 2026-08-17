@@ -48,6 +48,7 @@ export default function Login() {
           client_id: clientId,
           callback: handleGoogleLogin,
           auto_select: false,
+          use_fedcm: false,
         });
 
         const container = document.getElementById('google-btn-container');
