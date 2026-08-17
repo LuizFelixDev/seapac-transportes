@@ -22,7 +22,8 @@ import {
   Moon, 
   MapPin, 
   FileText,
-  Percent
+  Percent,
+  LogOut
 } from 'lucide-react';
 
 import TripFormModal from '@/components/TripFormModal';
@@ -30,6 +31,9 @@ import VehicleModal from '@/components/VehicleModal';
 import DriverModal from '@/components/DriverModal';
 
 export default function Dashboard() {
+  // Session User
+  const [user, setUser] = useState(null);
+
   // Data States
   const [trips, setTrips] = useState([]);
   const [vehicles, setVehicles] = useState([]);
@@ -54,15 +58,44 @@ export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const tripsPerPage = 10;
 
-  // Load Initial Data
+  // Load Initial Data & Check Session
   useEffect(() => {
     // Load theme from localStorage
     const savedTheme = localStorage.getItem('seapac-theme') || 'light';
     setTheme(savedTheme);
     document.documentElement.setAttribute('data-theme', savedTheme);
 
-    fetchInitialData();
+    const checkSessionAndFetch = async () => {
+      try {
+        const res = await fetch('/api/auth/session');
+        const data = await res.json();
+        if (data && data.user) {
+          setUser(data.user);
+          fetchInitialData();
+        } else {
+          window.location.href = '/login';
+        }
+      } catch (error) {
+        console.error('Session check error:', error);
+        window.location.href = '/login';
+      }
+    };
+
+    checkSessionAndFetch();
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      const res = await fetch('/api/auth/session', {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        window.location.href = '/login';
+      }
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
 
   const fetchInitialData = async () => {
     try {
@@ -475,6 +508,34 @@ export default function Dashboard() {
               ))}
             </select>
           </div>
+
+          {user && (
+            <div className="user-profile-header" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '0.5rem', borderRight: '1px solid hsl(var(--border))', paddingRight: '0.75rem' }}>
+              {user.picture ? (
+                <img 
+                  src={user.picture} 
+                  alt={user.name} 
+                  style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid hsl(var(--border))' }}
+                />
+              ) : (
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'hsl(var(--primary))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.75rem' }}>
+                  {user.name ? user.name[0].toUpperCase() : 'U'}
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', marginRight: '0.25rem' }} className="user-info-text">
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>{user.name.split(' ')[0]}</span>
+                <span style={{ fontSize: '0.6rem', color: 'hsl(var(--muted-foreground))' }}>{user.email}</span>
+              </div>
+              <button 
+                className="btn btn-secondary btn-icon" 
+                onClick={handleLogout} 
+                title="Sair do Sistema"
+                style={{ padding: '0.25rem', height: '28px', width: '28px' }}
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
+          )}
 
           <button className="btn btn-secondary btn-icon" onClick={handleThemeToggle} id="theme-toggle-btn" title="Alternar Tema">
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}

@@ -36,8 +36,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 });
     }
 
-    if (Number(body.departureKm) >= Number(body.arrivalKm)) {
-      return NextResponse.json({ error: 'KM de saída deve ser menor que o KM de chegada.' }, { status: 400 });
+    if (Number(body.departureKm) > Number(body.arrivalKm)) {
+      return NextResponse.json({ error: 'KM de saída deve ser menor ou igual ao KM de chegada.' }, { status: 400 });
     }
 
     const newTrip = await addTrip(body);

@@ -49,15 +49,31 @@ async function ensureSchema() {
         "routeFrom" TEXT NOT NULL,
         "routeTo" TEXT NOT NULL,
         "departureTime" TEXT NOT NULL,
-        "departureKm" INTEGER NOT NULL,
+        "departureKm" NUMERIC(10, 2) NOT NULL,
         "arrivalTime" TEXT NOT NULL,
-        "arrivalKm" INTEGER NOT NULL,
-        "refuelKm" INTEGER,
+        "arrivalKm" NUMERIC(10, 2) NOT NULL,
+        "refuelKm" NUMERIC(10, 2),
         "refuelLiters" NUMERIC(10, 2),
         "fuelType" TEXT,
         signature TEXT NOT NULL
       );
     `;
+
+    // Alterar colunas de KM de INTEGER para NUMERIC(10, 2) se necessário
+    const columnCheck = await sql`
+      SELECT data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'trips' AND column_name = 'departureKm';
+    `;
+    if (columnCheck.length > 0 && columnCheck[0].data_type === 'integer') {
+      console.log('Migrando colunas de KM da tabela trips de INTEGER para NUMERIC(10, 2)...');
+      await sql`
+        ALTER TABLE trips 
+        ALTER COLUMN "departureKm" TYPE NUMERIC(10, 2),
+        ALTER COLUMN "arrivalKm" TYPE NUMERIC(10, 2),
+        ALTER COLUMN "refuelKm" TYPE NUMERIC(10, 2);
+      `;
+    }
 
     // Seed de dados iniciais se as tabelas estiverem vazias
     const vehiclesCount = await sql`SELECT COUNT(*)::int FROM vehicles`;
