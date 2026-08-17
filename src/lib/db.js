@@ -49,6 +49,17 @@ async function ensureSchema() {
       );
     `;
 
+    // Criar tabela de solicitações de acesso
+    await sql`
+      CREATE TABLE IF NOT EXISTS login_requests (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        date TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected'))
+      );
+    `;
+
     // 3. Criar tabela de viagens
     await sql`
       CREATE TABLE IF NOT EXISTS trips (
@@ -392,4 +403,52 @@ export async function deleteUser(id) {
   
   const result = await db`DELETE FROM users WHERE id = ${id} RETURNING id`;
   return result.length > 0;
+}
+
+// --- LOGIN REQUESTS CRUD ---
+export async function getPendingRequests() {
+  await ensureSchema();
+  const db = getClient();
+  return await db`SELECT * FROM login_requests WHERE status = 'pending' ORDER BY date ASC`;
+}
+
+export async function getLoginRequestByEmail(email) {
+  await ensureSchema();
+  const db = getClient();
+  const result = await db`SELECT * FROM login_requests WHERE LOWER(email) = ${email.toLowerCase()}`;
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function addLoginRequest(request) {
+  await ensureSchema();
+  const db = getClient();
+  const id = crypto.randomUUID();
+  const today = new Date().toISOString().split('T')[0];
+  
+  await db`
+    INSERT INTO login_requests (id, name, email, date, status)
+    VALUES (${id}, ${request.name}, ${request.email.toLowerCase()}, ${today}, 'pending')
+  `;
+  
+  return {
+    id,
+    name: request.name,
+    email: request.email.toLowerCase(),
+    date: today,
+    status: 'pending'
+  };
+}
+
+export async function updateLoginRequestStatus(id, status) {
+  await ensureSchema();
+  const db = getClient();
+  
+  const result = await db`
+    UPDATE login_requests
+    SET status = ${status}
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  
+  return result.length > 0 ? result[0] : null;
 }
