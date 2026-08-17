@@ -23,12 +23,14 @@ import {
   MapPin, 
   FileText,
   Percent,
-  LogOut
+  LogOut,
+  Shield
 } from 'lucide-react';
 
 import TripFormModal from '@/components/TripFormModal';
 import VehicleModal from '@/components/VehicleModal';
 import DriverModal from '@/components/DriverModal';
+import UserManagementModal from '@/components/UserManagementModal';
 
 export default function Dashboard() {
   // Session User
@@ -46,6 +48,7 @@ export default function Dashboard() {
   const [isTripModalOpen, setIsTripModalOpen] = useState(false);
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
 
   // Filters State
@@ -656,13 +659,18 @@ export default function Dashboard() {
             <div style={{ textAlign: 'center', padding: '1rem', color: 'hsl(var(--muted-foreground))' }}>Nenhum veículo selecionado.</div>
           )}
 
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
-            <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem' }} onClick={() => setIsVehicleModalOpen(true)}>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '80px' }} onClick={() => setIsVehicleModalOpen(true)}>
               <Settings size={14} /> Frotas
             </button>
-            <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem' }} onClick={() => setIsDriverModalOpen(true)}>
+            <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '95px' }} onClick={() => setIsDriverModalOpen(true)}>
               <Users size={14} /> Condutores
             </button>
+            {user?.role === 'adm' && (
+              <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '95px' }} onClick={() => setIsUserModalOpen(true)}>
+                <Shield size={14} /> Usuários
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -890,6 +898,13 @@ export default function Dashboard() {
         drivers={drivers}
         onCreate={handleCreateDriver}
         onDelete={handleDeleteDriver}
+      />
+
+      {/* USER MANAGEMENT MODAL */}
+      <UserManagementModal 
+        isOpen={isUserModalOpen}
+        onClose={() => setIsUserModalOpen(false)}
+        currentUserEmail={user?.email || ''}
       />
 
     </div>
