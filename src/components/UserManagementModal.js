@@ -67,6 +67,22 @@ export default function UserManagementModal({ isOpen, onClose, currentUserEmail 
       return;
     }
 
+    // Promoted to Admin confirmation checks
+    if (role === 'adm') {
+      if (editingId) {
+        const originalUser = users.find(u => u.id === editingId);
+        if (originalUser && originalUser.role !== 'adm') {
+          if (!confirm(`⚠️ ATENÇÃO: Tem certeza absoluta que deseja alterar o perfil do usuário "${name}" para ADMINISTRADOR (Acesso Total)?`)) {
+            return;
+          }
+        }
+      } else {
+        if (!confirm(`⚠️ ATENÇÃO: Tem certeza absoluta que deseja autorizar o usuário "${name}" com o perfil de ADMINISTRADOR (Acesso Total)?`)) {
+          return;
+        }
+      }
+    }
+
     setActionLoading(true);
     try {
       if (editingId) {
@@ -154,7 +170,15 @@ export default function UserManagementModal({ isOpen, onClose, currentUserEmail 
   };
 
   const handleApproveRequest = async (reqId, requestName, requestEmail) => {
-    const assignedRole = confirm(`Deseja aprovar ${requestName} (${requestEmail}) como ADMINISTRADOR?\n\n(Clique em Cancelar para aprovar com perfil NORMAL)`) ? 'adm' : 'normal';
+    let assignedRole = 'normal';
+    if (confirm(`Deseja aprovar ${requestName} (${requestEmail}) como ADMINISTRADOR?\n\n(Clique em Cancelar para aprovar com perfil NORMAL)`)) {
+      // Second warning prompt for admin role elevation
+      if (confirm(`⚠️ ATENÇÃO: Tem certeza absoluta que deseja conceder acesso de ADMINISTRADOR (Acesso Total) para o usuário "${requestName}"?`)) {
+        assignedRole = 'adm';
+      } else {
+        assignedRole = 'normal';
+      }
+    }
 
     setActionLoading(true);
     setError('');
