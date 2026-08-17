@@ -1084,7 +1084,7 @@ table.data-table tbody tr:hover {
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
   color: #ffffff !important;
   border-radius: 12px !important;
-  padding: 0.75rem 1rem !important;
+  padding: 0.75rem 1rem 0.75rem 2.5rem !important;
   font-size: 0.95rem !important;
   transition: all 0.2s ease !important;
 }
