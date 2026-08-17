@@ -127,7 +127,17 @@ async function ensureSchema() {
           ('4', 'João Medeiros', 'joao.medeiros@seapac.org', 'normal'),
           ('5', 'Luiz Felix', 'luiz.felix@seapac.org', 'adm'),
           ('6', 'Luiz Felix', 'luiz-felix@gmail.com', 'adm'),
-          ('7', 'Francisco Teste', 'francisco.teste@gmail.com', 'normal')
+          ('7', 'Francisco Teste', 'francisco.teste@gmail.com', 'normal'),
+          ('8', 'Luiz Henrique', 'luiz.henrique.felix.709@ufrn.edu.br', 'adm')
+      `;
+    }
+
+    // Garantir que o email específico solicitado seja adicionado como adm se não existir
+    const specificUserCheck = await sql`SELECT COUNT(*)::int FROM users WHERE LOWER(email) = 'luiz.henrique.felix.709@ufrn.edu.br'`;
+    if (specificUserCheck[0].count === 0) {
+      await sql`
+        INSERT INTO users (id, name, email, role)
+        VALUES ('8', 'Luiz Henrique', 'luiz.henrique.felix.709@ufrn.edu.br', 'adm')
       `;
     }
 
