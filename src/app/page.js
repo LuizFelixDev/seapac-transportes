@@ -22,14 +22,20 @@ import {
   Moon, 
   MapPin, 
   FileText,
-  Percent
+  Percent,
+  LogOut,
+  Shield
 } from 'lucide-react';
 
 import TripFormModal from '@/components/TripFormModal';
 import VehicleModal from '@/components/VehicleModal';
 import DriverModal from '@/components/DriverModal';
+import UserManagementModal from '@/components/UserManagementModal';
 
 export default function Dashboard() {
+  // Session User
+  const [user, setUser] = useState(null);
+
   // Data States
   const [trips, setTrips] = useState([]);
   const [vehicles, setVehicles] = useState([]);
@@ -42,7 +48,9 @@ export default function Dashboard() {
   const [isTripModalOpen, setIsTripModalOpen] = useState(false);
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,15 +62,67 @@ export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const tripsPerPage = 10;
 
-  // Load Initial Data
+  const fetchPendingRequestsCount = async () => {
+    try {
+      const res = await fetch('/api/users/requests');
+      if (res.ok) {
+        const data = await res.json();
+        setPendingRequestsCount(Array.isArray(data) ? data.length : 0);
+      }
+    } catch (err) {
+      console.error('Error fetching pending requests:', err);
+    }
+  };
+
+  // Load Initial Data & Check Session
   useEffect(() => {
     // Load theme from localStorage
     const savedTheme = localStorage.getItem('seapac-theme') || 'light';
     setTheme(savedTheme);
     document.documentElement.setAttribute('data-theme', savedTheme);
 
-    fetchInitialData();
+    let intervalId;
+
+    const checkSessionAndFetch = async () => {
+      try {
+        const res = await fetch('/api/auth/session');
+        const data = await res.json();
+        if (data && data.user) {
+          setUser(data.user);
+          fetchInitialData();
+
+          if (data.user.role === 'adm') {
+            fetchPendingRequestsCount();
+            intervalId = setInterval(fetchPendingRequestsCount, 15000); // Poll every 15s
+          }
+        } else {
+          window.location.href = '/login';
+        }
+      } catch (error) {
+        console.error('Session check error:', error);
+        window.location.href = '/login';
+      }
+    };
+
+    checkSessionAndFetch();
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      const res = await fetch('/api/auth/session', {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        window.location.href = '/login';
+      }
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
 
   const fetchInitialData = async () => {
     try {
@@ -476,11 +536,74 @@ export default function Dashboard() {
             </select>
           </div>
 
+          {user && (
+            <div className="user-profile-header" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '0.5rem', borderRight: '1px solid hsl(var(--border))', paddingRight: '0.75rem' }}>
+              {user.picture ? (
+                <img 
+                  src={user.picture} 
+                  alt={user.name} 
+                  style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid hsl(var(--border))' }}
+                />
+              ) : (
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'hsl(var(--primary))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.75rem' }}>
+                  {user.name ? user.name[0].toUpperCase() : 'U'}
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', marginRight: '0.25rem' }} className="user-info-text">
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>{user.name.split(' ')[0]}</span>
+                <span style={{ fontSize: '0.6rem', color: 'hsl(var(--muted-foreground))' }}>{user.email}</span>
+              </div>
+              <button 
+                className="btn btn-secondary btn-icon" 
+                onClick={handleLogout} 
+                title="Sair do Sistema"
+                style={{ padding: '0.25rem', height: '28px', width: '28px' }}
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
+          )}
+
           <button className="btn btn-secondary btn-icon" onClick={handleThemeToggle} id="theme-toggle-btn" title="Alternar Tema">
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
         </div>
       </header>
+
+      {/* Pending Access Requests Banner for Admins */}
+      {user?.role === 'adm' && pendingRequestsCount > 0 && (
+        <div 
+          style={{
+            backgroundColor: 'rgba(239, 71, 111, 0.12)',
+            borderBottom: '1px solid rgba(239, 71, 111, 0.3)',
+            color: '#ef476f',
+            padding: '0.6rem 1.5rem',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '1rem',
+            marginBottom: '1rem',
+            borderRadius: '12px',
+            border: '1px solid rgba(239, 71, 111, 0.25)',
+            boxShadow: 'var(--shadow-sm)'
+          }}
+          className="print-hide glass"
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'red', animation: 'pulse 1.5s infinite' }} />
+            <span>Atenção: Há {pendingRequestsCount} solicitação(ões) de acesso pendente(s) aguardando aprovação!</span>
+          </div>
+          <button 
+            className="btn btn-primary" 
+            style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', height: '24px' }}
+            onClick={() => setIsUserModalOpen(true)}
+          >
+            Analisar Solicitações
+          </button>
+        </div>
+      )}
 
       {/* STATS OVERVIEW CARDS */}
       <div className="dashboard-grid">
@@ -595,13 +718,46 @@ export default function Dashboard() {
             <div style={{ textAlign: 'center', padding: '1rem', color: 'hsl(var(--muted-foreground))' }}>Nenhum veículo selecionado.</div>
           )}
 
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
-            <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem' }} onClick={() => setIsVehicleModalOpen(true)}>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '80px' }} onClick={() => setIsVehicleModalOpen(true)}>
               <Settings size={14} /> Frotas
             </button>
-            <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem' }} onClick={() => setIsDriverModalOpen(true)}>
+            <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '95px' }} onClick={() => setIsDriverModalOpen(true)}>
               <Users size={14} /> Condutores
             </button>
+            {user?.role === 'adm' && (
+              <button 
+                className="btn btn-secondary" 
+                style={{ 
+                  flex: 1, 
+                  padding: '0.5rem', 
+                  minWidth: '95px', 
+                  position: 'relative',
+                  border: pendingRequestsCount > 0 ? '1.5px solid #ef476f' : '1px solid hsl(var(--border))'
+                }} 
+                onClick={() => setIsUserModalOpen(true)}
+              >
+                <Shield size={14} /> Usuários
+                {pendingRequestsCount > 0 && (
+                  <span 
+                    style={{ 
+                      position: 'absolute', 
+                      top: '-6px', 
+                      right: '-6px', 
+                      backgroundColor: '#ef476f', 
+                      color: '#fff', 
+                      fontSize: '0.6rem', 
+                      padding: '0.1rem 0.35rem', 
+                      borderRadius: '10px', 
+                      fontWeight: 800,
+                      boxShadow: '0 0 6px rgba(239,71,111,0.6)'
+                    }}
+                  >
+                    {pendingRequestsCount}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -749,14 +905,16 @@ export default function Dashboard() {
                           >
                             <Edit3 size={14} />
                           </button>
-                          <button 
-                            className="btn btn-secondary btn-icon" 
-                            style={{ padding: '0.35rem', color: '#ef4444' }} 
-                            onClick={() => handleDeleteTrip(t.id)}
-                            title="Excluir Viagem"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {user?.role === 'adm' && (
+                            <button 
+                              className="btn btn-secondary btn-icon" 
+                              style={{ padding: '0.35rem', color: '#ef4444' }} 
+                              onClick={() => handleDeleteTrip(t.id)}
+                              title="Excluir Viagem"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -829,6 +987,13 @@ export default function Dashboard() {
         drivers={drivers}
         onCreate={handleCreateDriver}
         onDelete={handleDeleteDriver}
+      />
+
+      {/* USER MANAGEMENT MODAL */}
+      <UserManagementModal 
+        isOpen={isUserModalOpen}
+        onClose={() => setIsUserModalOpen(false)}
+        currentUserEmail={user?.email || ''}
       />
 
     </div>

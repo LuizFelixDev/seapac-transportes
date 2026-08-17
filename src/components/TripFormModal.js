@@ -85,7 +85,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
         const data = await res.json();
         if (data.routes && data.routes[0]) {
           const distanceMeters = data.routes[0].distance;
-          const distanceKm = Math.round(distanceMeters / 1000);
+          const distanceKm = Number((distanceMeters / 1000).toFixed(2));
           setEstimatedKm(distanceKm);
           
           // Auto-fill arrival KM
@@ -423,8 +423,8 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
     const depKm = Number(departureKm);
     const arrKm = Number(arrivalKm);
 
-    if (depKm >= arrKm) {
-      setError('O KM de Chegada deve ser estritamente maior que o KM de Saída.');
+    if (depKm > arrKm) {
+      setError('O KM de Chegada deve ser maior ou igual ao KM de Saída.');
       return;
     }
 
@@ -686,6 +686,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                 <label>KM Saída *</label>
                 <input
                   type="number"
+                  step="any"
                   className="form-control"
                   placeholder="Ex: 125400"
                   value={departureKm}
@@ -709,6 +710,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                 <label>KM Final *</label>
                 <input
                   type="number"
+                  step="any"
                   className="form-control"
                   placeholder="Ex: 125680"
                   value={arrivalKm}
@@ -745,6 +747,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                     <label>KM Abastecimento *</label>
                     <input
                       type="number"
+                      step="any"
                       className="form-control"
                       placeholder="Ex: 125550"
                       value={refuelKm}

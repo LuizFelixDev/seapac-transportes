@@ -39,6 +39,27 @@ async function ensureSchema() {
       );
     `;
 
+    // Criar tabela de usuários autorizados
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        role TEXT NOT NULL CHECK (role IN ('adm', 'normal'))
+      );
+    `;
+
+    // Criar tabela de solicitações de acesso
+    await sql`
+      CREATE TABLE IF NOT EXISTS login_requests (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        date TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected'))
+      );
+    `;
+
     // 3. Criar tabela de viagens
     await sql`
       CREATE TABLE IF NOT EXISTS trips (
@@ -49,15 +70,31 @@ async function ensureSchema() {
         "routeFrom" TEXT NOT NULL,
         "routeTo" TEXT NOT NULL,
         "departureTime" TEXT NOT NULL,
-        "departureKm" INTEGER NOT NULL,
+        "departureKm" NUMERIC(10, 2) NOT NULL,
         "arrivalTime" TEXT NOT NULL,
-        "arrivalKm" INTEGER NOT NULL,
-        "refuelKm" INTEGER,
+        "arrivalKm" NUMERIC(10, 2) NOT NULL,
+        "refuelKm" NUMERIC(10, 2),
         "refuelLiters" NUMERIC(10, 2),
         "fuelType" TEXT,
         signature TEXT NOT NULL
       );
     `;
+
+    // Alterar colunas de KM de INTEGER para NUMERIC(10, 2) se necessário
+    const columnCheck = await sql`
+      SELECT data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'trips' AND column_name = 'departureKm';
+    `;
+    if (columnCheck.length > 0 && columnCheck[0].data_type === 'integer') {
+      console.log('Migrando colunas de KM da tabela trips de INTEGER para NUMERIC(10, 2)...');
+      await sql`
+        ALTER TABLE trips 
+        ALTER COLUMN "departureKm" TYPE NUMERIC(10, 2),
+        ALTER COLUMN "arrivalKm" TYPE NUMERIC(10, 2),
+        ALTER COLUMN "refuelKm" TYPE NUMERIC(10, 2);
+      `;
+    }
 
     // Seed de dados iniciais se as tabelas estiverem vazias
     const vehiclesCount = await sql`SELECT COUNT(*)::int FROM vehicles`;
@@ -76,6 +113,31 @@ async function ensureSchema() {
           ('1', 'Francisco Silva'),
           ('2', 'Maria Sousa'),
           ('3', 'João Medeiros');
+      `;
+    }
+
+    const usersCount = await sql`SELECT COUNT(*)::int FROM users`;
+    if (usersCount[0].count === 0) {
+      await sql`
+        INSERT INTO users (id, name, email, role)
+        VALUES 
+          ('1', 'Administrador SEAPAC', 'admin@seapac.org', 'adm'),
+          ('2', 'Francisco Silva', 'francisco.silva@seapac.org', 'normal'),
+          ('3', 'Maria Sousa', 'maria.sousa@seapac.org', 'normal'),
+          ('4', 'João Medeiros', 'joao.medeiros@seapac.org', 'normal'),
+          ('5', 'Luiz Felix', 'luiz.felix@seapac.org', 'adm'),
+          ('6', 'Luiz Felix', 'luiz-felix@gmail.com', 'adm'),
+          ('7', 'Francisco Teste', 'francisco.teste@gmail.com', 'normal'),
+          ('8', 'Luiz Henrique', 'luiz.henrique.felix.709@ufrn.edu.br', 'adm')
+      `;
+    }
+
+    // Garantir que o email específico solicitado seja adicionado como adm se não existir
+    const specificUserCheck = await sql`SELECT COUNT(*)::int FROM users WHERE LOWER(email) = 'luiz.henrique.felix.709@ufrn.edu.br'`;
+    if (specificUserCheck[0].count === 0) {
+      await sql`
+        INSERT INTO users (id, name, email, role)
+        VALUES ('8', 'Luiz Henrique', 'luiz.henrique.felix.709@ufrn.edu.br', 'adm')
       `;
     }
 
@@ -297,4 +359,115 @@ export async function deleteDriver(id) {
   
   const result = await db`DELETE FROM drivers WHERE id = ${id} RETURNING id`;
   return result.length > 0;
+}
+
+// --- USERS CRUD ---
+export async function getUsers() {
+  await ensureSchema();
+  const db = getClient();
+  return await db`SELECT * FROM users ORDER BY name ASC`;
+}
+
+export async function getUserByEmail(email) {
+  await ensureSchema();
+  const db = getClient();
+  const result = await db`SELECT * FROM users WHERE LOWER(email) = ${email.toLowerCase()}`;
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function addUser(user) {
+  await ensureSchema();
+  const db = getClient();
+  const id = crypto.randomUUID();
+  
+  await db`
+    INSERT INTO users (id, name, email, role)
+    VALUES (${id}, ${user.name}, ${user.email}, ${user.role})
+  `;
+  
+  return {
+    ...user,
+    id
+  };
+}
+
+export async function updateUser(id, updatedUser) {
+  await ensureSchema();
+  const db = getClient();
+  
+  const result = await db`
+    UPDATE users
+    SET name = ${updatedUser.name},
+        email = ${updatedUser.email},
+        role = ${updatedUser.role}
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function deleteUser(id) {
+  await ensureSchema();
+  const db = getClient();
+  
+  // Get user email before deleting
+  const userResult = await db`SELECT email FROM users WHERE id = ${id}`;
+  if (userResult.length > 0) {
+    const email = userResult[0].email;
+    // Delete from users
+    await db`DELETE FROM users WHERE id = ${id}`;
+    // Delete corresponding login request to allow fresh request attempts
+    await db`DELETE FROM login_requests WHERE LOWER(email) = ${email.toLowerCase()}`;
+    return true;
+  }
+  return false;
+}
+
+// --- LOGIN REQUESTS CRUD ---
+export async function getPendingRequests() {
+  await ensureSchema();
+  const db = getClient();
+  return await db`SELECT * FROM login_requests WHERE status = 'pending' ORDER BY date ASC`;
+}
+
+export async function getLoginRequestByEmail(email) {
+  await ensureSchema();
+  const db = getClient();
+  const result = await db`SELECT * FROM login_requests WHERE LOWER(email) = ${email.toLowerCase()}`;
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function addLoginRequest(request) {
+  await ensureSchema();
+  const db = getClient();
+  const id = crypto.randomUUID();
+  const today = new Date().toISOString().split('T')[0];
+  
+  await db`
+    INSERT INTO login_requests (id, name, email, date, status)
+    VALUES (${id}, ${request.name}, ${request.email.toLowerCase()}, ${today}, 'pending')
+  `;
+  
+  return {
+    id,
+    name: request.name,
+    email: request.email.toLowerCase(),
+    date: today,
+    status: 'pending'
+  };
+}
+
+export async function updateLoginRequestStatus(id, status) {
+  await ensureSchema();
+  const db = getClient();
+  
+  const result = await db`
+    UPDATE login_requests
+    SET status = ${status}
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  
+  return result.length > 0 ? result[0] : null;
 }

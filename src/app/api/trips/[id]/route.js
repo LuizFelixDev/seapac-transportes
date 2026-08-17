@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { updateTrip, deleteTrip } from '@/lib/db';
+import { isAdmin } from '@/lib/session';
 
 export async function PUT(request, { params }) {
   try {
@@ -21,8 +22,8 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 });
     }
 
-    if (Number(body.departureKm) >= Number(body.arrivalKm)) {
-      return NextResponse.json({ error: 'KM de saída deve ser menor que o KM de chegada.' }, { status: 400 });
+    if (Number(body.departureKm) > Number(body.arrivalKm)) {
+      return NextResponse.json({ error: 'KM de saída deve ser menor ou igual ao KM de chegada.' }, { status: 400 });
     }
 
     const updated = await updateTrip(id, body);
@@ -39,6 +40,11 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
+    const isUserAdmin = await isAdmin();
+    if (!isUserAdmin) {
+      return NextResponse.json({ error: 'Acesso negado. Apenas administradores podem excluir viagens.' }, { status: 403 });
+    }
+
     const { id } = await params;
     const success = await deleteTrip(id);
     if (!success) {
