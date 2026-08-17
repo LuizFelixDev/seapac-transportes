@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getUserByEmail } from '@/lib/db';
+import { getUserByEmail, getLoginRequestByEmail, addLoginRequest } from '@/lib/db';
 import { encrypt, decrypt } from '@/lib/session';
 
 export async function GET() {
@@ -38,10 +38,26 @@ export async function POST(request) {
     // Verify user authorization in DB
     const dbUser = await getUserByEmail(email);
     if (!dbUser) {
-      return NextResponse.json(
-        { error: 'Acesso negado. Seu e-mail não está autorizado no sistema. Contate o administrador.' },
-        { status: 403 }
-      );
+      // Check if they already have an access request
+      const reqStatus = await getLoginRequestByEmail(email);
+      if (!reqStatus) {
+        // Create request
+        await addLoginRequest({ name, email });
+        return NextResponse.json(
+          { error: 'Acesso negado. Sua solicitação de acesso foi enviada aos administradores. Por favor, aguarde a aprovação.' },
+          { status: 403 }
+        );
+      } else if (reqStatus.status === 'pending') {
+        return NextResponse.json(
+          { error: 'Acesso negado. Sua solicitação de acesso está aguardando aprovação dos administradores. Por favor, aguarde.' },
+          { status: 403 }
+        );
+      } else if (reqStatus.status === 'rejected') {
+        return NextResponse.json(
+          { error: 'Acesso negado. Seu pedido de acesso foi recusado por um administrador.' },
+          { status: 403 }
+        );
+      }
     }
 
     const user = { 
