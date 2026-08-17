@@ -57,7 +57,7 @@ export default function Login() {
             {
               theme: 'outline',
               size: 'large',
-              width: '100%',
+              width: 350,
               text: 'signin_with',
               shape: 'rectangular',
             }
