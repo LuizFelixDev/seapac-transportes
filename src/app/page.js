@@ -50,6 +50,7 @@ export default function Dashboard() {
   const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,12 +62,26 @@ export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const tripsPerPage = 10;
 
+  const fetchPendingRequestsCount = async () => {
+    try {
+      const res = await fetch('/api/users/requests');
+      if (res.ok) {
+        const data = await res.json();
+        setPendingRequestsCount(Array.isArray(data) ? data.length : 0);
+      }
+    } catch (err) {
+      console.error('Error fetching pending requests:', err);
+    }
+  };
+
   // Load Initial Data & Check Session
   useEffect(() => {
     // Load theme from localStorage
     const savedTheme = localStorage.getItem('seapac-theme') || 'light';
     setTheme(savedTheme);
     document.documentElement.setAttribute('data-theme', savedTheme);
+
+    let intervalId;
 
     const checkSessionAndFetch = async () => {
       try {
@@ -75,6 +90,11 @@ export default function Dashboard() {
         if (data && data.user) {
           setUser(data.user);
           fetchInitialData();
+
+          if (data.user.role === 'adm') {
+            fetchPendingRequestsCount();
+            intervalId = setInterval(fetchPendingRequestsCount, 15000); // Poll every 15s
+          }
         } else {
           window.location.href = '/login';
         }
@@ -85,6 +105,10 @@ export default function Dashboard() {
     };
 
     checkSessionAndFetch();
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -546,6 +570,41 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {/* Pending Access Requests Banner for Admins */}
+      {user?.role === 'adm' && pendingRequestsCount > 0 && (
+        <div 
+          style={{
+            backgroundColor: 'rgba(239, 71, 111, 0.12)',
+            borderBottom: '1px solid rgba(239, 71, 111, 0.3)',
+            color: '#ef476f',
+            padding: '0.6rem 1.5rem',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '1rem',
+            marginBottom: '1rem',
+            borderRadius: '12px',
+            border: '1px solid rgba(239, 71, 111, 0.25)',
+            boxShadow: 'var(--shadow-sm)'
+          }}
+          className="print-hide glass"
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'red', animation: 'pulse 1.5s infinite' }} />
+            <span>Atenção: Há {pendingRequestsCount} solicitação(ões) de acesso pendente(s) aguardando aprovação!</span>
+          </div>
+          <button 
+            className="btn btn-primary" 
+            style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', height: '24px' }}
+            onClick={() => setIsUserModalOpen(true)}
+          >
+            Analisar Solicitações
+          </button>
+        </div>
+      )}
+
       {/* STATS OVERVIEW CARDS */}
       <div className="dashboard-grid">
         <div className="metric-card">
@@ -667,8 +726,36 @@ export default function Dashboard() {
               <Users size={14} /> Condutores
             </button>
             {user?.role === 'adm' && (
-              <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '95px' }} onClick={() => setIsUserModalOpen(true)}>
+              <button 
+                className="btn btn-secondary" 
+                style={{ 
+                  flex: 1, 
+                  padding: '0.5rem', 
+                  minWidth: '95px', 
+                  position: 'relative',
+                  border: pendingRequestsCount > 0 ? '1.5px solid #ef476f' : '1px solid hsl(var(--border))'
+                }} 
+                onClick={() => setIsUserModalOpen(true)}
+              >
                 <Shield size={14} /> Usuários
+                {pendingRequestsCount > 0 && (
+                  <span 
+                    style={{ 
+                      position: 'absolute', 
+                      top: '-6px', 
+                      right: '-6px', 
+                      backgroundColor: '#ef476f', 
+                      color: '#fff', 
+                      fontSize: '0.6rem', 
+                      padding: '0.1rem 0.35rem', 
+                      borderRadius: '10px', 
+                      fontWeight: 800,
+                      boxShadow: '0 0 6px rgba(239,71,111,0.6)'
+                    }}
+                  >
+                    {pendingRequestsCount}
+                  </span>
+                )}
               </button>
             )}
           </div>
