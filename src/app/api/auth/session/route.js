@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
+import { getUserByEmail } from '@/lib/db';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
@@ -59,6 +60,7 @@ export async function GET() {
   }
 }
 
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -68,7 +70,22 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Nome e email são obrigatórios.' }, { status: 400 });
     }
 
-    const user = { name, email, picture: picture || null };
+    // Verify user authorization in DB
+    const dbUser = await getUserByEmail(email);
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: 'Acesso negado. Seu e-mail não está autorizado no sistema. Contate o administrador.' },
+        { status: 403 }
+      );
+    }
+
+    const user = { 
+      name: dbUser.name, 
+      email: dbUser.email, 
+      role: dbUser.role, 
+      picture: picture || null 
+    };
+    
     const encrypted = encrypt(JSON.stringify(user));
 
     const cookieStore = await cookies();
