@@ -411,8 +411,17 @@ export async function deleteUser(id) {
   await ensureSchema();
   const db = getClient();
   
-  const result = await db`DELETE FROM users WHERE id = ${id} RETURNING id`;
-  return result.length > 0;
+  // Get user email before deleting
+  const userResult = await db`SELECT email FROM users WHERE id = ${id}`;
+  if (userResult.length > 0) {
+    const email = userResult[0].email;
+    // Delete from users
+    await db`DELETE FROM users WHERE id = ${id}`;
+    // Delete corresponding login request to allow fresh request attempts
+    await db`DELETE FROM login_requests WHERE LOWER(email) = ${email.toLowerCase()}`;
+    return true;
+  }
+  return false;
 }
 
 // --- LOGIN REQUESTS CRUD ---

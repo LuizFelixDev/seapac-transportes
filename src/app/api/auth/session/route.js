@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getUserByEmail, getLoginRequestByEmail, addLoginRequest } from '@/lib/db';
+import { getUserByEmail, getLoginRequestByEmail, addLoginRequest, updateLoginRequestStatus } from '@/lib/db';
 import { encrypt, decrypt } from '@/lib/session';
 
 export async function GET() {
@@ -52,9 +52,12 @@ export async function POST(request) {
           { error: 'Acesso negado. Sua solicitação de acesso está aguardando aprovação dos administradores. Por favor, aguarde.' },
           { status: 403 }
         );
-      } else if (reqStatus.status === 'rejected') {
+      } else {
+        // The request is either 'approved' (but user was deleted from users table) or 'rejected'.
+        // We reset the status to 'pending' to let them request access again!
+        await updateLoginRequestStatus(reqStatus.id, 'pending');
         return NextResponse.json(
-          { error: 'Acesso negado. Seu pedido de acesso foi recusado por um administrador.' },
+          { error: 'Acesso negado. Sua solicitação de acesso foi reenviada aos administradores. Por favor, aguarde a aprovação.' },
           { status: 403 }
         );
       }
