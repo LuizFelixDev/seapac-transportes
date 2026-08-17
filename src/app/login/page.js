@@ -7,6 +7,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasClientId, setHasClientId] = useState(false);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
   
   // States for the simulated Google Sign-in form (fallback)
   const [mockName, setMockName] = useState('');
@@ -14,43 +15,21 @@ export default function Login() {
 
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
-  // Initialize and load Google Identity Services SDK
+  // Track client ID presence
   useEffect(() => {
     setHasClientId(!!clientId);
+  }, [clientId]);
 
+  // Load Google Identity Services SDK
+  useEffect(() => {
     if (clientId) {
-      // Create and append the Google client SDK script
       const script = document.createElement('script');
       script.src = 'https://accounts.google.com/gsi/client';
       script.async = true;
       script.defer = true;
       
       script.onload = () => {
-        if (window.google) {
-          try {
-            window.google.accounts.id.initialize({
-              client_id: clientId,
-              callback: handleGoogleLogin,
-              auto_select: false,
-            });
-
-            window.google.accounts.id.renderButton(
-              document.getElementById('google-btn-container'),
-              {
-                theme: 'outline',
-                size: 'large',
-                width: '100%',
-                text: 'signin_with',
-                shape: 'rectangular',
-              }
-            );
-
-            // Optional: Display One Tap prompt
-            window.google.accounts.id.prompt();
-          } catch (err) {
-            console.error('Error initializing Google One Tap:', err);
-          }
-        }
+        setScriptLoaded(true);
       };
 
       document.body.appendChild(script);
@@ -60,6 +39,37 @@ export default function Login() {
       };
     }
   }, [clientId]);
+
+  // Render Google button once the DOM container is mounted and script is loaded
+  useEffect(() => {
+    if (hasClientId && scriptLoaded && window.google) {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleLogin,
+          auto_select: false,
+        });
+
+        const container = document.getElementById('google-btn-container');
+        if (container) {
+          window.google.accounts.id.renderButton(
+            container,
+            {
+              theme: 'outline',
+              size: 'large',
+              width: '100%',
+              text: 'signin_with',
+              shape: 'rectangular',
+            }
+          );
+        }
+
+        window.google.accounts.id.prompt();
+      } catch (err) {
+        console.error('Error initializing Google One Tap:', err);
+      }
+    }
+  }, [hasClientId, scriptLoaded, clientId]);
 
   // Handle Google authenticaton token callback
   const handleGoogleLogin = async (response) => {
