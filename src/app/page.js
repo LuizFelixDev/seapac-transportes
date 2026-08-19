@@ -846,25 +846,41 @@ export default function Dashboard() {
                 </tr>
               ) : (
                 currentTrips.map((t) => {
-                  const rodados = Number(t.arrivalKm) - Number(t.departureKm);
+                  const rodados = t.arrivalKm ? (Number(t.arrivalKm) - Number(t.departureKm)) : null;
                   const isImageSig = t.signature && t.signature.startsWith('data:image');
+                  const canEdit = !t.isPartial || (user && t.createdBy === user.email);
+                  const editTooltip = !canEdit 
+                    ? `Apenas o usuário que cadastrou (${t.createdBy || 'desconhecido'}) pode finalizar.` 
+                    : 'Editar/Finalizar Viagem';
                   
                   return (
-                    <tr key={t.id}>
+                    <tr key={t.id} className={t.isPartial ? 'trip-partial' : ''}>
                       <td>{new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                       <td style={{ fontWeight: 700 }}>{t.driver}</td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>
                           <span style={{ color: 'hsl(var(--primary))', fontWeight: 600 }}>{t.routeFrom}</span>
                           <span style={{ color: 'hsl(var(--muted-foreground))' }}>➔</span>
-                          <span style={{ color: 'hsl(var(--accent))', fontWeight: 600 }}>{t.routeTo}</span>
+                          {t.isPartial && !t.routeTo ? (
+                            <span className="partial-badge">Pendente</span>
+                          ) : (
+                            <span style={{ color: 'hsl(var(--accent))', fontWeight: 600 }}>{t.routeTo || '-'}</span>
+                          )}
                         </div>
                       </td>
                       <td>{t.departureTime}</td>
                       <td><span className="km-badge">{t.departureKm.toLocaleString('pt-BR')}</span></td>
-                      <td>{t.arrivalTime}</td>
-                      <td><span className="km-badge">{t.arrivalKm.toLocaleString('pt-BR')}</span></td>
-                      <td style={{ fontWeight: 800, color: 'hsl(var(--primary))' }}>+{rodados} km</td>
+                      <td>{t.isPartial && !t.arrivalTime ? <span className="partial-badge">Pendente</span> : (t.arrivalTime || '-')}</td>
+                      <td>
+                        {t.isPartial && !t.arrivalKm ? (
+                          <span className="partial-badge">Pendente</span>
+                        ) : (
+                          t.arrivalKm ? <span className="km-badge">{t.arrivalKm.toLocaleString('pt-BR')}</span> : '-'
+                        )}
+                      </td>
+                      <td style={{ fontWeight: 800, color: t.isPartial ? '#ef476f' : 'hsl(var(--primary))' }}>
+                        {rodados !== null ? `+${rodados} km` : '-'}
+                      </td>
                       <td>
                         {t.refuelKm && t.refuelLiters ? (
                           <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.75rem' }}>
@@ -885,7 +901,9 @@ export default function Dashboard() {
                         )}
                       </td>
                       <td className="signature-cell">
-                        {isImageSig ? (
+                        {t.isPartial && !t.signature ? (
+                          <span className="partial-badge">Pendente</span>
+                        ) : isImageSig ? (
                           <img 
                             src={t.signature} 
                             alt="Assinatura" 
@@ -899,9 +917,20 @@ export default function Dashboard() {
                         <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
                           <button 
                             className="btn btn-secondary btn-icon" 
-                            style={{ padding: '0.35rem' }} 
-                            onClick={() => { setSelectedTrip(t); setIsTripModalOpen(true); }}
-                            title="Editar Viagem"
+                            style={{ 
+                              padding: '0.35rem',
+                              opacity: canEdit ? 1 : 0.4,
+                              cursor: canEdit ? 'pointer' : 'not-allowed'
+                            }} 
+                            onClick={() => {
+                              if (canEdit) {
+                                setSelectedTrip(t);
+                                setIsTripModalOpen(true);
+                              } else {
+                                alert(`Apenas o usuário que iniciou este cadastro (${t.createdBy || 'desconhecido'}) pode finalizá-lo.`);
+                              }
+                            }}
+                            title={editTooltip}
                           >
                             <Edit3 size={14} />
                           </button>
@@ -967,6 +996,7 @@ export default function Dashboard() {
         vehicles={vehicles}
         onAddVehicle={handleCreateVehicle}
         activeVehicleId={activeVehicleId}
+        currentUser={user}
       />
 
       {/* VEHICLES MODAL */}
