@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, PenTool, Type, RefreshCw, Loader2 } from 'lucide-react';
 import MapPickerModal from './MapPickerModal';
 
-export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTrip, drivers, vehicles = [], onAddVehicle, activeVehicleId }) {
+export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTrip, drivers, vehicles = [], onAddVehicle, activeVehicleId, currentUser }) {
   const [date, setDate] = useState('');
   const [driver, setDriver] = useState('');
   const [routeFrom, setRouteFrom] = useState('');
@@ -13,6 +13,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
   const [departureKm, setDepartureKm] = useState('');
   const [arrivalTime, setArrivalTime] = useState('');
   const [arrivalKm, setArrivalKm] = useState('');
+  const [isPartial, setIsPartial] = useState(false);
 
   // Refueling fields
   const [hasRefuel, setHasRefuel] = useState(false);
@@ -258,6 +259,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       setDepartureKm(trip.departureKm || '');
       setArrivalTime(trip.arrivalTime || '');
       setArrivalKm(trip.arrivalKm || '');
+      setIsPartial(!!trip.isPartial);
 
       setSelectedVehicleId(trip.vehicleId || '');
 
@@ -281,20 +283,21 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
         }, 100);
       } else {
         setSignatureMode('type');
-        setTypedSignature(trip.signature || '');
+        setTypedSignature(trip.signature || (currentUser ? currentUser.name : ''));
         setSignatureConfirmed(!!trip.signature);
       }
     } else {
       // Set defaults for new trip (pre-filling starting locations & KM from last trip if available)
       const today = new Date().toISOString().split('T')[0];
       setDate(today);
-      setDriver(lastTrip ? lastTrip.driver : '');
+      setDriver(currentUser ? currentUser.name : (lastTrip ? lastTrip.driver : ''));
       setRouteFrom(lastTrip ? lastTrip.routeTo : '');
       setRouteTo('');
       setDepartureTime('');
       setDepartureKm(lastTrip ? lastTrip.arrivalKm : '0');
       setArrivalTime('');
       setArrivalKm('');
+      setIsPartial(false);
 
       // Trigger silent geocoding of the pre-filled start point so distance calculations work immediately
       if (lastTrip && lastTrip.routeTo) {
@@ -313,7 +316,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       setRefuelLiters('');
       setFuelType('');
       setSignatureMode('draw');
-      setTypedSignature('');
+      setTypedSignature(currentUser ? currentUser.name : '');
       setSignatureConfirmed(false);
 
       // Clear canvas if it exists
@@ -322,7 +325,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       }, 50);
     }
     setError('');
-  }, [trip, lastTrip, isOpen, activeVehicleId]);
+  }, [trip, lastTrip, isOpen, activeVehicleId, currentUser]);
 
   // Canvas drawing functions
   const getCanvasMousePos = (e) => {
@@ -405,15 +408,25 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
     }
 
     // Validations (allowing 0 as a valid KM value)
-    const clientHasMissingFields = 
-      !date || 
-      !driver || 
-      !routeFrom || 
-      !routeTo || 
-      !departureTime || 
-      !arrivalTime ||
-      departureKm === undefined || departureKm === null || departureKm === '' ||
-      arrivalKm === undefined || arrivalKm === null || arrivalKm === '';
+    let clientHasMissingFields = false;
+    if (isPartial) {
+      clientHasMissingFields = 
+        !date || 
+        !driver || 
+        !routeFrom || 
+        !departureTime || 
+        departureKm === undefined || departureKm === null || departureKm === '';
+    } else {
+      clientHasMissingFields = 
+        !date || 
+        !driver || 
+        !routeFrom || 
+        !routeTo || 
+        !departureTime || 
+        !arrivalTime ||
+        departureKm === undefined || departureKm === null || departureKm === '' ||
+        arrivalKm === undefined || arrivalKm === null || arrivalKm === '';
+    }
 
     if (clientHasMissingFields) {
       setError('Por favor, preencha todos os campos obrigatórios.');
@@ -421,9 +434,9 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
     }
 
     const depKm = Number(departureKm);
-    const arrKm = Number(arrivalKm);
+    const arrKm = (arrivalKm !== undefined && arrivalKm !== null && arrivalKm !== '') ? Number(arrivalKm) : null;
 
-    if (depKm > arrKm) {
+    if (!isPartial && arrKm !== null && depKm > arrKm) {
       setError('O KM de Chegada deve ser maior ou igual ao KM de Saída.');
       return;
     }
@@ -434,7 +447,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
         return;
       }
       const refKm = Number(refuelKm);
-      if (refKm < depKm || refKm > arrKm) {
+      if (refKm < depKm || (arrKm !== null && refKm > arrKm)) {
         setError('O KM de Abastecimento deve estar entre o KM de Saída e o KM de Chegada.');
         return;
       }
@@ -442,29 +455,48 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
 
     // Get Signature
     let finalSignature = '';
-    if (signatureMode === 'draw') {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        // Check if canvas is blank
-        const blank = document.createElement('canvas');
-        blank.width = canvas.width;
-        blank.height = canvas.height;
-        if (canvas.toDataURL() === blank.toDataURL()) {
-          setError('Por favor, faça a sua assinatura na tela.');
+    if (!isPartial) {
+      if (signatureMode === 'draw') {
+        const canvas = canvasRef.current;
+        if (canvas) {
+          // Check if canvas is blank
+          const blank = document.createElement('canvas');
+          blank.width = canvas.width;
+          blank.height = canvas.height;
+          if (canvas.toDataURL() === blank.toDataURL()) {
+            setError('Por favor, faça a sua assinatura na tela.');
+            return;
+          }
+          finalSignature = canvas.toDataURL();
+        }
+      } else {
+        if (!typedSignature.trim()) {
+          setError('Por favor, digite o seu nome para a assinatura digital.');
           return;
         }
-        finalSignature = canvas.toDataURL();
+        if (!signatureConfirmed) {
+          setError('Você precisa marcar a caixa confirmando a assinatura.');
+          return;
+        }
+        finalSignature = typedSignature.trim();
       }
     } else {
-      if (!typedSignature.trim()) {
-        setError('Por favor, digite o seu nome para a assinatura digital.');
-        return;
+      // Se for parcial, salva a assinatura se houver desenho ou digitação opcional
+      if (signatureMode === 'draw') {
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const blank = document.createElement('canvas');
+          blank.width = canvas.width;
+          blank.height = canvas.height;
+          if (canvas.toDataURL() !== blank.toDataURL()) {
+            finalSignature = canvas.toDataURL();
+          }
+        }
+      } else {
+        if (typedSignature.trim() && signatureConfirmed) {
+          finalSignature = typedSignature.trim();
+        }
       }
-      if (!signatureConfirmed) {
-        setError('Você precisa marcar a caixa confirmando a assinatura.');
-        return;
-      }
-      finalSignature = typedSignature.trim();
     }
 
     const payload = {
@@ -472,15 +504,16 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       date,
       driver,
       routeFrom,
-      routeTo,
+      routeTo: isPartial ? (routeTo || '') : routeTo,
       departureTime,
       departureKm: depKm,
-      arrivalTime,
+      arrivalTime: isPartial ? (arrivalTime || '') : arrivalTime,
       arrivalKm: arrKm,
       refuelKm: hasRefuel ? Number(refuelKm) : null,
       refuelLiters: hasRefuel ? Number(refuelLiters) : null,
       fuelType: hasRefuel ? fuelType : '',
-      signature: finalSignature
+      signature: finalSignature,
+      isPartial: isPartial
     };
 
     onSubmit(payload);
@@ -597,6 +630,20 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                 </select>
               </div>
 
+              {/* Opção de Cadastro Parcial */}
+              <div className="form-group" style={{ gridColumn: '1 / -1', flexDirection: 'row', alignItems: 'center', gap: '0.5rem', margin: '0.25rem 0 0.75rem 0', backgroundColor: 'rgba(239, 71, 111, 0.05)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 71, 111, 0.2)' }}>
+                <input
+                  type="checkbox"
+                  id="isPartial"
+                  checked={isPartial}
+                  onChange={(e) => setIsPartial(e.target.checked)}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <label htmlFor="isPartial" style={{ cursor: 'pointer', textTransform: 'none', fontSize: '0.85rem', color: 'hsl(var(--foreground))', fontWeight: 700 }}>
+                  Salvar como Cadastro Parcial (Viagem em andamento / pendente)
+                </label>
+              </div>
+
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <label>Origem (De) *</label>
@@ -636,7 +683,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
 
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label>Destino (Para) *</label>
+                  <label>Destino (Para) {isPartial ? '' : '*'}</label>
                   <div style={{ display: 'flex', gap: '0.25rem' }}>
                     <button
                       type="button"
@@ -667,7 +714,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                     setToCoords(null);
                   }}
                   onBlur={(e) => geocodeTextSilently(e.target.value, 'to')}
-                  required
+                  required={!isPartial}
                 />
               </div>
 
@@ -696,18 +743,18 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
               </div>
 
               <div className="form-group">
-                <label>Horário Chegada *</label>
+                <label>Horário Chegada {isPartial ? '' : '*'}</label>
                 <input
                   type="time"
                   className="form-control"
                   value={arrivalTime}
                   onChange={(e) => setArrivalTime(e.target.value)}
-                  required
+                  required={!isPartial}
                 />
               </div>
 
               <div className="form-group">
-                <label>KM Final *</label>
+                <label>KM Final {isPartial ? '' : '*'}</label>
                 <input
                   type="number"
                   step="any"
@@ -715,7 +762,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                   placeholder="Ex: 125680"
                   value={arrivalKm}
                   onChange={(e) => setArrivalKm(e.target.value)}
-                  required
+                  required={!isPartial}
                 />
                 {estimatedKm !== null && (
                   <span style={{ fontSize: '0.75rem', color: 'hsl(var(--primary))', fontWeight: 700, marginTop: '0.2rem' }}>

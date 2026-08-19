@@ -68,17 +68,38 @@ async function ensureSchema() {
         date TEXT NOT NULL,
         driver TEXT NOT NULL,
         "routeFrom" TEXT NOT NULL,
-        "routeTo" TEXT NOT NULL,
+        "routeTo" TEXT,
         "departureTime" TEXT NOT NULL,
         "departureKm" NUMERIC(10, 2) NOT NULL,
-        "arrivalTime" TEXT NOT NULL,
-        "arrivalKm" NUMERIC(10, 2) NOT NULL,
+        "arrivalTime" TEXT,
+        "arrivalKm" NUMERIC(10, 2),
         "refuelKm" NUMERIC(10, 2),
         "refuelLiters" NUMERIC(10, 2),
         "fuelType" TEXT,
-        signature TEXT NOT NULL
+        signature TEXT,
+        "isPartial" BOOLEAN DEFAULT FALSE,
+        "createdBy" TEXT
       );
     `;
+
+    // Garantir que as colunas novas existam e remover restrições NOT NULL antigas
+    const partialColumnCheck = await sql`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'trips' AND column_name = 'isPartial';
+    `;
+    if (partialColumnCheck.length === 0) {
+      console.log('Migrando tabela trips para suportar viagens parciais...');
+      await sql`
+        ALTER TABLE trips 
+        ADD COLUMN IF NOT EXISTS "isPartial" BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS "createdBy" TEXT,
+        ALTER COLUMN "routeTo" DROP NOT NULL,
+        ALTER COLUMN "arrivalTime" DROP NOT NULL,
+        ALTER COLUMN "arrivalKm" DROP NOT NULL,
+        ALTER COLUMN "signature" DROP NOT NULL;
+      `;
+    }
 
     // Alterar colunas de KM de INTEGER para NUMERIC(10, 2) se necessário
     const columnCheck = await sql`
@@ -170,26 +191,44 @@ export async function getTrips() {
   }));
 }
 
+export async function getTripById(id) {
+  await ensureSchema();
+  const db = getClient();
+  
+  const rows = await db`SELECT * FROM trips WHERE id = ${id}`;
+  if (rows.length > 0) {
+    const t = rows[0];
+    return {
+      ...t,
+      refuelLiters: t.refuelLiters ? Number(t.refuelLiters) : null
+    };
+  }
+  return null;
+}
+
 export async function addTrip(trip) {
   await ensureSchema();
   const db = getClient();
   const id = crypto.randomUUID();
   
   const departureKm = Number(trip.departureKm);
-  const arrivalKm = Number(trip.arrivalKm);
+  const arrivalKm = (trip.arrivalKm !== null && trip.arrivalKm !== undefined && trip.arrivalKm !== '') ? Number(trip.arrivalKm) : null;
   const refuelKm = trip.refuelKm ? Number(trip.refuelKm) : null;
   const refuelLiters = trip.refuelLiters ? Number(trip.refuelLiters) : null;
+  const isPartial = !!trip.isPartial;
+  const createdBy = trip.createdBy || null;
   
   await db`
     INSERT INTO trips (
       id, "vehicleId", date, driver, "routeFrom", "routeTo", 
       "departureTime", "departureKm", "arrivalTime", "arrivalKm", 
-      "refuelKm", "refuelLiters", "fuelType", signature
+      "refuelKm", "refuelLiters", "fuelType", signature, "isPartial", "createdBy"
     )
     VALUES (
-      ${id}, ${trip.vehicleId}, ${trip.date}, ${trip.driver}, ${trip.routeFrom}, ${trip.routeTo},
-      ${trip.departureTime}, ${departureKm}, ${trip.arrivalTime}, ${arrivalKm},
-      ${refuelKm}, ${refuelLiters}, ${trip.fuelType || ''}, ${trip.signature}
+      ${id}, ${trip.vehicleId}, ${trip.date}, ${trip.driver}, ${trip.routeFrom}, ${trip.routeTo || null},
+      ${trip.departureTime}, ${departureKm}, ${trip.arrivalTime || null}, ${arrivalKm},
+      ${refuelKm}, ${refuelLiters}, ${trip.fuelType || ''}, ${trip.signature || null},
+      ${isPartial}, ${createdBy}
     )
   `;
   
@@ -199,7 +238,9 @@ export async function addTrip(trip) {
     departureKm,
     arrivalKm,
     refuelKm,
-    refuelLiters
+    refuelLiters,
+    isPartial,
+    createdBy
   };
 }
 
@@ -208,9 +249,10 @@ export async function updateTrip(id, updatedTrip) {
   const db = getClient();
   
   const departureKm = Number(updatedTrip.departureKm);
-  const arrivalKm = Number(updatedTrip.arrivalKm);
+  const arrivalKm = (updatedTrip.arrivalKm !== null && updatedTrip.arrivalKm !== undefined && updatedTrip.arrivalKm !== '') ? Number(updatedTrip.arrivalKm) : null;
   const refuelKm = updatedTrip.refuelKm ? Number(updatedTrip.refuelKm) : null;
   const refuelLiters = updatedTrip.refuelLiters ? Number(updatedTrip.refuelLiters) : null;
+  const isPartial = !!updatedTrip.isPartial;
   
   const result = await db`
     UPDATE trips
@@ -218,15 +260,16 @@ export async function updateTrip(id, updatedTrip) {
         date = ${updatedTrip.date},
         driver = ${updatedTrip.driver},
         "routeFrom" = ${updatedTrip.routeFrom},
-        "routeTo" = ${updatedTrip.routeTo},
+        "routeTo" = ${updatedTrip.routeTo || null},
         "departureTime" = ${updatedTrip.departureTime},
         "departureKm" = ${departureKm},
-        "arrivalTime" = ${updatedTrip.arrivalTime},
+        "arrivalTime" = ${updatedTrip.arrivalTime || null},
         "arrivalKm" = ${arrivalKm},
         "refuelKm" = ${refuelKm},
         "refuelLiters" = ${refuelLiters},
         "fuelType" = ${updatedTrip.fuelType || ''},
-        signature = ${updatedTrip.signature}
+        signature = ${updatedTrip.signature || null},
+        "isPartial" = ${isPartial}
     WHERE id = ${id}
     RETURNING *
   `;
