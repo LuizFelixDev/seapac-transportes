@@ -369,6 +369,26 @@ export default function Dashboard() {
     }
   };
 
+  const handleUpdateVehicle = async (vehicleData) => {
+    try {
+      const response = await fetch('/api/vehicles', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(vehicleData)
+      });
+      if (response.ok) {
+        const updatedVehicle = await response.json();
+        setVehicles(vehicles.map(v => v.id === updatedVehicle.id ? updatedVehicle : v));
+        return updatedVehicle;
+      } else {
+        const err = await response.json();
+        alert(err.error || 'Erro ao atualizar veículo.');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar veículo:', error);
+    }
+  };
+
   const handleDeleteVehicle = async (id) => {
     try {
       const response = await fetch(`/api/vehicles?id=${id}`, { method: 'DELETE' });
@@ -1007,7 +1027,9 @@ export default function Dashboard() {
         activeVehicleId={activeVehicleId}
         onSelect={(id) => { setActiveVehicleId(id); setIsVehicleModalOpen(false); setCurrentPage(1); }}
         onCreate={handleCreateVehicle}
+        onUpdate={handleUpdateVehicle}
         onDelete={handleDeleteVehicle}
+        currentUser={user}
       />
 
       {/* DRIVERS MODAL */}
