@@ -1,10 +1,21 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Check, Car } from 'lucide-react';
+import { X, Plus, Trash2, Check, Car, Edit3 } from 'lucide-react';
 
-export default function VehicleModal({ isOpen, onClose, vehicles, activeVehicleId, onSelect, onCreate, onDelete }) {
-  const [isAdding, setIsAdding] = useState(false);
+export default function VehicleModal({ 
+  isOpen, 
+  onClose, 
+  vehicles, 
+  activeVehicleId, 
+  onSelect, 
+  onCreate, 
+  onUpdate, 
+  onDelete, 
+  currentUser 
+}) {
+  const [formMode, setFormMode] = useState('list'); // 'list' | 'add' | 'edit'
+  const [editingVehicleId, setEditingVehicleId] = useState(null);
   const [name, setName] = useState('');
   const [plate, setPlate] = useState('');
   const [institution, setInstitution] = useState('');
@@ -13,7 +24,36 @@ export default function VehicleModal({ isOpen, onClose, vehicles, activeVehicleI
   const [obs, setObs] = useState('');
   const [error, setError] = useState('');
 
-  const handleAddSubmit = (e) => {
+  const resetForm = () => {
+    setName('');
+    setPlate('');
+    setInstitution('');
+    setInsurance('');
+    setAddress('');
+    setObs('');
+    setEditingVehicleId(null);
+    setError('');
+    setFormMode('list');
+  };
+
+  const handleStartEdit = (vehicle) => {
+    setEditingVehicleId(vehicle.id);
+    setName(vehicle.name || '');
+    setPlate(vehicle.plate || '');
+    setInstitution(vehicle.institution || '');
+    setInsurance(vehicle.insurance || '');
+    setAddress(vehicle.address || '');
+    setObs(vehicle.obs || '');
+    setError('');
+    setFormMode('edit');
+  };
+
+  const handleStartAdd = () => {
+    resetForm();
+    setFormMode('add');
+  };
+
+  const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
 
@@ -22,33 +62,40 @@ export default function VehicleModal({ isOpen, onClose, vehicles, activeVehicleI
       return;
     }
 
-    onCreate({
-      name,
-      plate,
-      institution,
-      insurance: insurance || 'Dados Seguro: --------',
-      address: address || 'Endereço não informado',
-      obs: obs || ''
-    });
+    if (formMode === 'edit' && editingVehicleId) {
+      onUpdate({
+        id: editingVehicleId,
+        name,
+        plate,
+        institution,
+        insurance: insurance || 'Dados Seguro: --------',
+        address: address || 'Endereço não informado',
+        obs: obs || ''
+      });
+    } else {
+      onCreate({
+        name,
+        plate,
+        institution,
+        insurance: insurance || 'Dados Seguro: --------',
+        address: address || 'Endereço não informado',
+        obs: obs || ''
+      });
+    }
 
-    // Reset
-    setName('');
-    setPlate('');
-    setInstitution('');
-    setInsurance('');
-    setAddress('');
-    setObs('');
-    setIsAdding(false);
+    resetForm();
   };
 
   if (!isOpen) return null;
+
+  const isUserAdmin = currentUser?.role === 'adm';
 
   return (
     <div className="modal-overlay">
       <div className="modal-content small glass">
         <div className="modal-header">
           <h2>Gerenciar Frota</h2>
-          <button className="btn btn-secondary btn-icon" onClick={onClose}>
+          <button className="btn btn-secondary btn-icon" onClick={() => { resetForm(); onClose(); }}>
             <X size={18} />
           </button>
         </div>
@@ -60,11 +107,11 @@ export default function VehicleModal({ isOpen, onClose, vehicles, activeVehicleI
             </div>
           )}
 
-          {!isAdding ? (
+          {formMode === 'list' ? (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>VEÍCULOS CADASTRADOS</span>
-                <button className="btn btn-primary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem' }} onClick={() => setIsAdding(true)}>
+                <button className="btn btn-primary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem' }} onClick={handleStartAdd}>
                   <Plus size={14} /> Novo Veículo
                 </button>
               </div>
@@ -82,14 +129,23 @@ export default function VehicleModal({ isOpen, onClose, vehicles, activeVehicleI
                       </div>
                     </div>
                     
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       {activeVehicleId === v.id && (
                         <span style={{ color: 'hsl(var(--primary))', display: 'flex', alignItems: 'center', marginRight: '0.25rem' }}>
                           <Check size={16} />
                         </span>
                       )}
+
+                      <button 
+                        className="btn btn-secondary btn-icon" 
+                        style={{ padding: '0.35rem' }}
+                        onClick={() => handleStartEdit(v)}
+                        title="Editar Veículo"
+                      >
+                        <Edit3 size={14} />
+                      </button>
                       
-                      {vehicles.length > 1 && (
+                      {isUserAdmin && vehicles.length > 1 && (
                         <button 
                           className="btn btn-secondary btn-icon" 
                           style={{ color: '#ef4444', padding: '0.35rem' }}
@@ -98,6 +154,7 @@ export default function VehicleModal({ isOpen, onClose, vehicles, activeVehicleI
                               onDelete(v.id);
                             }
                           }}
+                          title="Excluir Veículo"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -108,9 +165,11 @@ export default function VehicleModal({ isOpen, onClose, vehicles, activeVehicleI
               </div>
             </>
           ) : (
-            <form onSubmit={handleAddSubmit}>
+            <form onSubmit={handleSubmit}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>CADASTRAR NOVO VEÍCULO</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>
+                  {formMode === 'edit' ? 'EDITAR VEÍCULO' : 'CADASTRAR NOVO VEÍCULO'}
+                </span>
               </div>
 
               <div className="form-grid" style={{ gap: '1rem' }}>
@@ -185,8 +244,10 @@ export default function VehicleModal({ isOpen, onClose, vehicles, activeVehicleI
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.5rem' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsAdding(false)}>Voltar</button>
-                <button type="submit" className="btn btn-primary">Salvar Veículo</button>
+                <button type="button" className="btn btn-secondary" onClick={resetForm}>Voltar</button>
+                <button type="submit" className="btn btn-primary">
+                  {formMode === 'edit' ? 'Atualizar Veículo' : 'Salvar Veículo'}
+                </button>
               </div>
             </form>
           )}
@@ -195,3 +256,4 @@ export default function VehicleModal({ isOpen, onClose, vehicles, activeVehicleI
     </div>
   );
 }
+

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getVehicles, addVehicle, updateVehicle, deleteVehicle } from '@/lib/db';
+import { isAdmin } from '@/lib/session';
 
 export async function GET() {
   try {
@@ -44,6 +45,11 @@ export async function PUT(request) {
 
 export async function DELETE(request) {
   try {
+    const isUserAdmin = await isAdmin();
+    if (!isUserAdmin) {
+      return NextResponse.json({ error: 'Acesso negado. Apenas administradores podem excluir veículos.' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) {
@@ -59,3 +65,4 @@ export async function DELETE(request) {
     return NextResponse.json({ error: 'Erro ao excluir veículo.' }, { status: 500 });
   }
 }
+
