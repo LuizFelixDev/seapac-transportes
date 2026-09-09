@@ -32,6 +32,7 @@ import VehicleModal from '@/components/VehicleModal';
 import DriverModal from '@/components/DriverModal';
 import UserManagementModal from '@/components/UserManagementModal';
 import OfflineBanner from '@/components/OfflineBanner';
+import PWAInstallButton from '@/components/PWAInstallButton';
 import { 
   savePendingTrip, 
   getPendingTrips, 
@@ -793,6 +794,8 @@ export default function Dashboard() {
               </button>
             </div>
           )}
+
+          <PWAInstallButton />
 
           <button className="btn btn-secondary btn-icon" onClick={handleThemeToggle} id="theme-toggle-btn" title="Alternar Tema">
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
