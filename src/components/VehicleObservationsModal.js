@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, AlertTriangle, Plus, Trash2, MessageSquare, Calendar, User } from 'lucide-react';
+import { X, AlertTriangle, Plus, MessageSquare, Calendar, User, CheckCircle2 } from 'lucide-react';
 import { parseVehicleObservations, addObservationToVehicle } from '@/lib/vehicleUtils';
 
 export default function VehicleObservationsModal({ isOpen, onClose, vehicle, onUpdateVehicle, currentUser }) {
@@ -35,7 +35,7 @@ export default function VehicleObservationsModal({ isOpen, onClose, vehicle, onU
   };
 
   const handleDeleteObservation = async (obsId) => {
-    if (!confirm('Deseja remover esta observação do veículo?')) return;
+    if (!confirm('Deseja marcar esta pendência como resolvida?')) return;
 
     try {
       setIsSubmitting(true);
@@ -116,17 +116,32 @@ export default function VehicleObservationsModal({ isOpen, onClose, vehicle, onU
                     gap: '0.4rem'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
                     <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: '#92400e', lineHeight: 1.4 }}>
                       {obs.text}
                     </p>
                     <button
                       type="button"
+                      className="btn"
+                      style={{
+                        padding: '0.25rem 0.55rem',
+                        fontSize: '0.7rem',
+                        height: '26px',
+                        backgroundColor: '#d97706',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}
                       onClick={() => handleDeleteObservation(obs.id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b45309', padding: '2px' }}
-                      title="Excluir observação"
+                      title="Marcar esta pendência como resolvida e excluir o aviso"
                     >
-                      <Trash2 size={14} />
+                      <CheckCircle2 size={13} /> Pendência Resolvida
                     </button>
                   </div>
                   <div style={{ display: 'flex', gap: '1rem', fontSize: '0.7rem', color: '#b45309', opacity: 0.8, marginTop: '0.2rem' }}>
