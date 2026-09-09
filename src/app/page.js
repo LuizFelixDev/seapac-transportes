@@ -33,6 +33,8 @@ import DriverModal from '@/components/DriverModal';
 import UserManagementModal from '@/components/UserManagementModal';
 import OfflineBanner from '@/components/OfflineBanner';
 import PWAInstallButton from '@/components/PWAInstallButton';
+import VehicleObservationsModal from '@/components/VehicleObservationsModal';
+import { parseVehicleObservations } from '@/lib/vehicleUtils';
 import { 
   savePendingTrip, 
   getPendingTrips, 
@@ -60,6 +62,10 @@ export default function Dashboard() {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
+  // Vehicle Observations Modal State
+  const [selectedObsVehicle, setSelectedObsVehicle] = useState(null);
+  const [isObsModalOpen, setIsObsModalOpen] = useState(false);
 
   // Offline Sync States
   const [pendingTripsCount, setPendingTripsCount] = useState(0);
@@ -748,22 +754,81 @@ export default function Dashboard() {
 
         <div className="header-actions">
           {/* Vehicle Switcher in header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '0.5rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'hsl(var(--muted-foreground))' }}>Veículo:</span>
-            <select 
-              className="select-field" 
-              style={{ minWidth: '150px', padding: '0.5rem' }} 
-              value={activeVehicleId}
-              onChange={(e) => {
-                setActiveVehicleId(e.target.value);
-                setCurrentPage(1);
-              }}
-            >
-              {vehicles.map(v => (
-                <option key={v.id} value={v.id}>{v.name} ({v.plate})</option>
-              ))}
-            </select>
-          </div>
+          {(() => {
+            const activeV = vehicles.find(v => v.id === activeVehicleId);
+            const obsList = parseVehicleObservations(activeV?.obs);
+            const hasObs = obsList.length > 0;
+
+            return (
+              <div 
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.4rem', 
+                  marginRight: '0.5rem',
+                  padding: hasObs ? '0.2rem 0.55rem' : '0',
+                  backgroundColor: hasObs ? '#fffbeb' : 'transparent',
+                  border: hasObs ? '1px solid #fde68a' : 'none',
+                  borderRadius: '8px',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: hasObs ? '#b45309' : 'hsl(var(--muted-foreground))' }}>
+                  {hasObs ? '⚠️ Veículo:' : 'Veículo:'}
+                </span>
+                <select 
+                  className="select-field" 
+                  style={{ 
+                    minWidth: '150px', 
+                    padding: '0.4rem 0.5rem',
+                    backgroundColor: hasObs ? '#fef3c7' : undefined,
+                    borderColor: hasObs ? '#fde68a' : undefined,
+                    color: hasObs ? '#92400e' : undefined,
+                    fontWeight: hasObs ? 700 : undefined
+                  }} 
+                  value={activeVehicleId}
+                  onChange={(e) => {
+                    setActiveVehicleId(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                >
+                  {vehicles.map(v => {
+                    const count = parseVehicleObservations(v.obs).length;
+                    return (
+                      <option key={v.id} value={v.id}>
+                        {count > 0 ? `⚠️ (${count} aviso${count > 1 ? 's' : ''}) ` : ''}
+                        {v.name} ({v.plate})
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {hasObs && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ 
+                      padding: '0.25rem 0.5rem', 
+                      fontSize: '0.7rem', 
+                      height: '28px', 
+                      backgroundColor: '#fde68a', 
+                      color: '#78350f', 
+                      border: '1px solid #f59e0b',
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap'
+                    }}
+                    onClick={() => {
+                      setSelectedObsVehicle(activeV);
+                      setIsObsModalOpen(true);
+                    }}
+                    title="Ver histórico de observações deste veículo"
+                  >
+                    ⚠️ {obsList.length} Obs. [Ver]
+                  </button>
+                )}
+              </div>
+            );
+          })()}
 
           {user && (
             <div className="user-profile-header" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '0.5rem', borderRight: '1px solid hsl(var(--border))', paddingRight: '0.75rem' }}>
@@ -1241,6 +1306,11 @@ export default function Dashboard() {
         drivers={drivers}
         vehicles={vehicles}
         onAddVehicle={handleCreateVehicle}
+        onUpdateVehicle={handleUpdateVehicle}
+        onOpenVehicleObsModal={(v) => {
+          setSelectedObsVehicle(v);
+          setIsObsModalOpen(true);
+        }}
         activeVehicleId={activeVehicleId}
         currentUser={user}
       />
@@ -1272,6 +1342,15 @@ export default function Dashboard() {
         isOpen={isUserModalOpen}
         onClose={() => setIsUserModalOpen(false)}
         currentUserEmail={user?.email || ''}
+      />
+
+      {/* VEHICLE OBSERVATIONS MODAL */}
+      <VehicleObservationsModal
+        isOpen={isObsModalOpen}
+        onClose={() => setIsObsModalOpen(false)}
+        vehicle={selectedObsVehicle}
+        onUpdateVehicle={handleUpdateVehicle}
+        currentUser={user}
       />
 
     </div>

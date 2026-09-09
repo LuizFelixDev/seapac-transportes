@@ -1,10 +1,9 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
-import { X, RefreshCw, Loader2 } from 'lucide-react';
+import { X, RefreshCw, Loader2, AlertTriangle, Eye } from 'lucide-react';
 import MapPickerModal from './MapPickerModal';
+import { parseVehicleObservations, addObservationToVehicle } from '@/lib/vehicleUtils';
 
-export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTrip, drivers, vehicles = [], onAddVehicle, activeVehicleId, currentUser }) {
+export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTrip, drivers, vehicles = [], onAddVehicle, onUpdateVehicle, onOpenVehicleObsModal, activeVehicleId, currentUser }) {
   const [date, setDate] = useState('');
   const [driver, setDriver] = useState('');
   const [routeFrom, setRouteFrom] = useState('');
@@ -14,6 +13,9 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
   const [arrivalTime, setArrivalTime] = useState('');
   const [arrivalKm, setArrivalKm] = useState('');
   const [isPartial, setIsPartial] = useState(false);
+
+  // Shortcut Vehicle Observation state
+  const [newVehicleObs, setNewVehicleObs] = useState('');
 
   // Refueling fields
   const [hasRefuel, setHasRefuel] = useState(false);
@@ -294,11 +296,12 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       setRefuelKm('');
       setRefuelLiters('');
       setFuelType('');
+      setNewVehicleObs('');
     }
     setError('');
   }, [trip, lastTrip, isOpen, activeVehicleId, currentUser]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -307,6 +310,20 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
     if (!selectedVehicleId) {
       setError('Por favor, selecione ou cadastre o veículo utilizado.');
       return;
+    }
+
+    // Se o usuário digitou uma nova observação para o veículo no atalho do formulário
+    const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+    if (newVehicleObs.trim() && selectedVehicle && onUpdateVehicle) {
+      try {
+        const updatedObsJson = addObservationToVehicle(selectedVehicle, newVehicleObs, currentUser?.name);
+        await onUpdateVehicle({
+          ...selectedVehicle,
+          obs: updatedObsJson
+        });
+      } catch (err) {
+        console.error('Erro ao salvar observação no atalho:', err);
+      }
     }
 
     // Validations (allowing 0 as a valid KM value)
@@ -410,17 +427,74 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                 </div>
                 
                 {!showQuickVehicle ? (
-                  <select 
-                    className="form-control" 
-                    value={selectedVehicleId} 
-                    onChange={(e) => setSelectedVehicleId(e.target.value)}
-                    required
-                  >
-                    <option value="">Selecione o veículo...</option>
-                    {vehicles.map(v => (
-                      <option key={v.id} value={v.id}>{v.name} ({v.plate}) - {v.institution}</option>
-                    ))}
-                  </select>
+                  <>
+                    <select 
+                      className="form-control" 
+                      value={selectedVehicleId} 
+                      onChange={(e) => setSelectedVehicleId(e.target.value)}
+                      required
+                      style={
+                        selectedVehicleId && parseVehicleObservations(vehicles.find(v => v.id === selectedVehicleId)?.obs).length > 0
+                          ? { backgroundColor: '#fffbeb', borderColor: '#fde68a', color: '#b45309', fontWeight: 700 }
+                          : {}
+                      }
+                    >
+                      <option value="">Selecione o veículo...</option>
+                      {vehicles.map(v => {
+                        const obsCount = parseVehicleObservations(v.obs).length;
+                        return (
+                          <option key={v.id} value={v.id}>
+                            {obsCount > 0 ? `⚠️ (${obsCount} aviso${obsCount > 1 ? 's' : ''}) ` : ''}
+                            {v.name} ({v.plate}) - {v.institution}
+                          </option>
+                        );
+                      })}
+                    </select>
+
+                    {/* Destaque em Amarelo para Observações do Veículo Selecionado */}
+                    {(() => {
+                      const selectedV = vehicles.find(v => v.id === selectedVehicleId);
+                      const obsList = parseVehicleObservations(selectedV?.obs);
+                      if (obsList.length === 0) return null;
+                      return (
+                        <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '0.6rem 0.8rem', marginTop: '0.5rem', color: '#92400e', fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
+                            <AlertTriangle size={16} style={{ color: '#b45309', flexShrink: 0 }} />
+                            <span>
+                              Este veículo possui {obsList.length} observação(ões): <span style={{ fontWeight: 400, fontStyle: 'italic' }}>"{obsList[0].text}"</span>
+                            </span>
+                          </div>
+                          {onOpenVehicleObsModal && (
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', height: '24px', backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', whiteSpace: 'nowrap' }}
+                              onClick={() => onOpenVehicleObsModal(selectedV)}
+                            >
+                              <Eye size={12} /> Ver Observações
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Atalho para cadastrar nova observação no veículo */}
+                    {selectedVehicleId && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>
+                          📝 Atalho: Adicionar Aviso/Observação ao Veículo (Salvo na Frota)
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="Ex: Trocar óleo aos 130.000km, retrovisor solto..."
+                          style={{ fontSize: '0.8rem', height: '32px' }}
+                          value={newVehicleObs}
+                          onChange={(e) => setNewVehicleObs(e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div style={{ display: 'flex', gap: '0.5rem', backgroundColor: 'hsl(var(--muted))', padding: '0.75rem', borderRadius: '8px', border: '1px solid hsl(var(--border))', marginTop: '0.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
                     <input 
