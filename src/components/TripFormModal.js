@@ -104,9 +104,6 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
     }
   }, [departureKm, estimatedKm]);
 
-  const canvasRef = useRef(null);
-  const isDrawingRef = useRef(false);
-
   const geocodeTextSilently = async (text, type) => {
     if (!text || text.trim().length < 3) return;
     try {
