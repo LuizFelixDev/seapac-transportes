@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, RefreshCw, Loader2, AlertTriangle, Eye } from 'lucide-react';
+import { X, RefreshCw, Loader2, AlertTriangle, Eye, Plus } from 'lucide-react';
 import MapPickerModal from './MapPickerModal';
 import { parseVehicleObservations, addObservationToVehicle } from '@/lib/vehicleUtils';
 
@@ -301,6 +301,24 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
     setError('');
   }, [trip, lastTrip, isOpen, activeVehicleId, currentUser]);
 
+  const handleSaveShortcutObs = async () => {
+    if (!newVehicleObs.trim() || !selectedVehicleId) return;
+    const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+    if (selectedVehicle && onUpdateVehicle) {
+      try {
+        const updatedObsJson = addObservationToVehicle(selectedVehicle, newVehicleObs, currentUser?.name);
+        await onUpdateVehicle({
+          ...selectedVehicle,
+          obs: updatedObsJson
+        });
+        setNewVehicleObs('');
+      } catch (err) {
+        console.error('Erro ao salvar observação no atalho:', err);
+        alert('Erro ao salvar a observação no veículo.');
+      }
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -321,6 +339,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
           ...selectedVehicle,
           obs: updatedObsJson
         });
+        setNewVehicleObs('');
       } catch (err) {
         console.error('Erro ao salvar observação no atalho:', err);
       }
@@ -480,18 +499,35 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
 
                     {/* Atalho para cadastrar nova observação no veículo */}
                     {selectedVehicleId && (
-                      <div style={{ marginTop: '0.5rem' }}>
+                      <div style={{ marginTop: '0.6rem' }}>
                         <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>
                           📝 Atalho: Adicionar Aviso/Observação ao Veículo (Salvo na Frota)
                         </label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          placeholder="Ex: Trocar óleo aos 130.000km, retrovisor solto..."
-                          style={{ fontSize: '0.8rem', height: '32px' }}
-                          value={newVehicleObs}
-                          onChange={(e) => setNewVehicleObs(e.target.value)}
-                        />
+                        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem' }}>
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Ex: Trocar óleo aos 130.000km, retrovisor solto..."
+                            style={{ fontSize: '0.8rem', height: '34px', flex: 1 }}
+                            value={newVehicleObs}
+                            onChange={(e) => setNewVehicleObs(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleSaveShortcutObs();
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            style={{ padding: '0.3rem 0.75rem', fontSize: '0.75rem', height: '34px', display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap' }}
+                            onClick={handleSaveShortcutObs}
+                            disabled={!newVehicleObs.trim()}
+                          >
+                            <Plus size={14} /> Cadastrar Aviso
+                          </button>
+                        </div>
                       </div>
                     )}
                   </>
