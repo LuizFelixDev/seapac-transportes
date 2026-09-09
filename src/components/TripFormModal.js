@@ -1,10 +1,9 @@
-'use client';
-
-import React, { useState, useEffect, useRef } from 'react';
-import { X, PenTool, Type, RefreshCw, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, RefreshCw, Loader2, AlertTriangle, Eye, Plus } from 'lucide-react';
 import MapPickerModal from './MapPickerModal';
+import { parseVehicleObservations, addObservationToVehicle } from '@/lib/vehicleUtils';
 
-export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTrip, drivers, vehicles = [], onAddVehicle, activeVehicleId, currentUser }) {
+export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTrip, drivers, vehicles = [], onAddVehicle, onUpdateVehicle, onOpenVehicleObsModal, activeVehicleId, currentUser }) {
   const [date, setDate] = useState('');
   const [driver, setDriver] = useState('');
   const [routeFrom, setRouteFrom] = useState('');
@@ -15,16 +14,14 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
   const [arrivalKm, setArrivalKm] = useState('');
   const [isPartial, setIsPartial] = useState(false);
 
+  // Shortcut Vehicle Observation state
+  const [newVehicleObs, setNewVehicleObs] = useState('');
+
   // Refueling fields
   const [hasRefuel, setHasRefuel] = useState(false);
   const [refuelKm, setRefuelKm] = useState('');
   const [refuelLiters, setRefuelLiters] = useState('');
   const [fuelType, setFuelType] = useState('');
-
-  // Signature fields
-  const [signatureMode, setSignatureMode] = useState('draw'); // 'draw' or 'type'
-  const [typedSignature, setTypedSignature] = useState('');
-  const [signatureConfirmed, setSignatureConfirmed] = useState(false);
   const [error, setError] = useState('');
 
   // Map and Geolocation fields
@@ -108,9 +105,6 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       setArrivalKm(baseKm + estimatedKm);
     }
   }, [departureKm, estimatedKm]);
-
-  const canvasRef = useRef(null);
-  const isDrawingRef = useRef(false);
 
   const geocodeTextSilently = async (text, type) => {
     if (!text || text.trim().length < 3) return;
@@ -252,7 +246,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
   useEffect(() => {
     if (trip) {
       setDate(trip.date || '');
-      setDriver(trip.driver || '');
+      setDriver(trip.driver || (currentUser ? currentUser.name : ''));
       setRouteFrom(trip.routeFrom || '');
       setRouteTo(trip.routeTo || '');
       setDepartureTime(trip.departureTime || '');
@@ -274,20 +268,8 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
         setRefuelLiters('');
         setFuelType('');
       }
-
-      if (trip.signature && trip.signature.startsWith('data:image')) {
-        setSignatureMode('draw');
-        // Let's load it onto canvas in a micro-tick
-        setTimeout(() => {
-          drawDataURLOnCanvas(trip.signature);
-        }, 100);
-      } else {
-        setSignatureMode('type');
-        setTypedSignature(trip.signature || (currentUser ? currentUser.name : ''));
-        setSignatureConfirmed(!!trip.signature);
-      }
     } else {
-      // Set defaults for new trip (pre-filling starting locations & KM from last trip if available)
+      // Set defaults for new trip
       const today = new Date().toISOString().split('T')[0];
       setDate(today);
       setDriver(currentUser ? currentUser.name : (lastTrip ? lastTrip.driver : ''));
@@ -299,7 +281,6 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       setArrivalKm('');
       setIsPartial(false);
 
-      // Trigger silent geocoding of the pre-filled start point so distance calculations work immediately
       if (lastTrip && lastTrip.routeTo) {
         geocodeTextSilently(lastTrip.routeTo, 'from');
       }
@@ -315,96 +296,53 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       setRefuelKm('');
       setRefuelLiters('');
       setFuelType('');
-      setSignatureMode('draw');
-      setTypedSignature(currentUser ? currentUser.name : '');
-      setSignatureConfirmed(false);
-
-      // Clear canvas if it exists
-      setTimeout(() => {
-        clearCanvas();
-      }, 50);
+      setNewVehicleObs('');
     }
     setError('');
   }, [trip, lastTrip, isOpen, activeVehicleId, currentUser]);
 
-  // Canvas drawing functions
-  const getCanvasMousePos = (e) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-
-    // Check if touch event
-    if (e.touches && e.touches[0]) {
-      return {
-        x: e.touches[0].clientX - rect.left,
-        y: e.touches[0].clientY - rect.top
-      };
+  const handleSaveShortcutObs = async () => {
+    if (!newVehicleObs.trim() || !selectedVehicleId) return;
+    const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+    if (selectedVehicle && onUpdateVehicle) {
+      try {
+        const updatedObsJson = addObservationToVehicle(selectedVehicle, newVehicleObs, currentUser?.name);
+        await onUpdateVehicle({
+          ...selectedVehicle,
+          obs: updatedObsJson
+        });
+        setNewVehicleObs('');
+      } catch (err) {
+        console.error('Erro ao salvar observação no atalho:', err);
+        alert('Erro ao salvar a observação no veículo.');
+      }
     }
-
-    return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    };
   };
 
-  const startDrawing = (e) => {
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const pos = getCanvasMousePos(e);
-
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-    isDrawingRef.current = true;
-  };
-
-  const draw = (e) => {
-    if (!isDrawingRef.current) return;
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const pos = getCanvasMousePos(e);
-
-    ctx.lineTo(pos.x, pos.y);
-    ctx.strokeStyle = '#1b4332'; // Deep Green
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-  };
-
-  const stopDrawing = () => {
-    isDrawingRef.current = false;
-  };
-
-  const clearCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  };
-
-  const drawDataURLOnCanvas = (dataURL) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    img.src = dataURL;
-    img.onload = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-    };
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    const effectiveDriver = driver || (currentUser ? currentUser.name : '');
 
     if (!selectedVehicleId) {
       setError('Por favor, selecione ou cadastre o veículo utilizado.');
       return;
+    }
+
+    // Se o usuário digitou uma nova observação para o veículo no atalho do formulário
+    const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+    if (newVehicleObs.trim() && selectedVehicle && onUpdateVehicle) {
+      try {
+        const updatedObsJson = addObservationToVehicle(selectedVehicle, newVehicleObs, currentUser?.name);
+        await onUpdateVehicle({
+          ...selectedVehicle,
+          obs: updatedObsJson
+        });
+        setNewVehicleObs('');
+      } catch (err) {
+        console.error('Erro ao salvar observação no atalho:', err);
+      }
     }
 
     // Validations (allowing 0 as a valid KM value)
@@ -412,14 +350,14 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
     if (isPartial) {
       clientHasMissingFields = 
         !date || 
-        !driver || 
+        !effectiveDriver || 
         !routeFrom || 
         !departureTime || 
         departureKm === undefined || departureKm === null || departureKm === '';
     } else {
       clientHasMissingFields = 
         !date || 
-        !driver || 
+        !effectiveDriver || 
         !routeFrom || 
         !routeTo || 
         !departureTime || 
@@ -453,56 +391,10 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       }
     }
 
-    // Get Signature
-    let finalSignature = '';
-    if (!isPartial) {
-      if (signatureMode === 'draw') {
-        const canvas = canvasRef.current;
-        if (canvas) {
-          // Check if canvas is blank
-          const blank = document.createElement('canvas');
-          blank.width = canvas.width;
-          blank.height = canvas.height;
-          if (canvas.toDataURL() === blank.toDataURL()) {
-            setError('Por favor, faça a sua assinatura na tela.');
-            return;
-          }
-          finalSignature = canvas.toDataURL();
-        }
-      } else {
-        if (!typedSignature.trim()) {
-          setError('Por favor, digite o seu nome para a assinatura digital.');
-          return;
-        }
-        if (!signatureConfirmed) {
-          setError('Você precisa marcar a caixa confirmando a assinatura.');
-          return;
-        }
-        finalSignature = typedSignature.trim();
-      }
-    } else {
-      // Se for parcial, salva a assinatura se houver desenho ou digitação opcional
-      if (signatureMode === 'draw') {
-        const canvas = canvasRef.current;
-        if (canvas) {
-          const blank = document.createElement('canvas');
-          blank.width = canvas.width;
-          blank.height = canvas.height;
-          if (canvas.toDataURL() !== blank.toDataURL()) {
-            finalSignature = canvas.toDataURL();
-          }
-        }
-      } else {
-        if (typedSignature.trim() && signatureConfirmed) {
-          finalSignature = typedSignature.trim();
-        }
-      }
-    }
-
     const payload = {
       vehicleId: selectedVehicleId,
       date,
-      driver,
+      driver: effectiveDriver,
       routeFrom,
       routeTo: isPartial ? (routeTo || '') : routeTo,
       departureTime,
@@ -512,7 +404,6 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       refuelKm: hasRefuel ? Number(refuelKm) : null,
       refuelLiters: hasRefuel ? Number(refuelLiters) : null,
       fuelType: hasRefuel ? fuelType : '',
-      signature: finalSignature,
       isPartial: isPartial
     };
 
@@ -555,17 +446,91 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                 </div>
                 
                 {!showQuickVehicle ? (
-                  <select 
-                    className="form-control" 
-                    value={selectedVehicleId} 
-                    onChange={(e) => setSelectedVehicleId(e.target.value)}
-                    required
-                  >
-                    <option value="">Selecione o veículo...</option>
-                    {vehicles.map(v => (
-                      <option key={v.id} value={v.id}>{v.name} ({v.plate}) - {v.institution}</option>
-                    ))}
-                  </select>
+                  <>
+                    <select 
+                      className="form-control" 
+                      value={selectedVehicleId} 
+                      onChange={(e) => setSelectedVehicleId(e.target.value)}
+                      required
+                      style={
+                        selectedVehicleId && parseVehicleObservations(vehicles.find(v => v.id === selectedVehicleId)?.obs).length > 0
+                          ? { backgroundColor: '#fffbeb', borderColor: '#fde68a', color: '#b45309', fontWeight: 700 }
+                          : {}
+                      }
+                    >
+                      <option value="">Selecione o veículo...</option>
+                      {vehicles.map(v => {
+                        const obsCount = parseVehicleObservations(v.obs).length;
+                        return (
+                          <option key={v.id} value={v.id}>
+                            {obsCount > 0 ? `⚠️ (${obsCount} aviso${obsCount > 1 ? 's' : ''}) ` : ''}
+                            {v.name} ({v.plate}) - {v.institution}
+                          </option>
+                        );
+                      })}
+                    </select>
+
+                    {/* Destaque em Amarelo para Observações do Veículo Selecionado */}
+                    {(() => {
+                      const selectedV = vehicles.find(v => v.id === selectedVehicleId);
+                      const obsList = parseVehicleObservations(selectedV?.obs);
+                      if (obsList.length === 0) return null;
+                      return (
+                        <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '0.6rem 0.8rem', marginTop: '0.5rem', color: '#92400e', fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
+                            <AlertTriangle size={16} style={{ color: '#b45309', flexShrink: 0 }} />
+                            <span>
+                              Este veículo possui {obsList.length} observação(ões): <span style={{ fontWeight: 400, fontStyle: 'italic' }}>"{obsList[0].text}"</span>
+                            </span>
+                          </div>
+                          {onOpenVehicleObsModal && (
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', height: '24px', backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', whiteSpace: 'nowrap' }}
+                              onClick={() => onOpenVehicleObsModal(selectedV)}
+                            >
+                              <Eye size={12} /> Ver Observações
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Atalho para cadastrar nova observação no veículo */}
+                    {selectedVehicleId && (
+                      <div style={{ marginTop: '0.6rem' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>
+                          📝 Atalho: Adicionar Aviso/Observação ao Veículo (Salvo na Frota)
+                        </label>
+                        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem' }}>
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Ex: Trocar óleo aos 130.000km, retrovisor solto..."
+                            style={{ fontSize: '0.8rem', height: '34px', flex: 1 }}
+                            value={newVehicleObs}
+                            onChange={(e) => setNewVehicleObs(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleSaveShortcutObs();
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            style={{ padding: '0.3rem 0.75rem', fontSize: '0.75rem', height: '34px', display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap' }}
+                            onClick={handleSaveShortcutObs}
+                            disabled={!newVehicleObs.trim()}
+                          >
+                            <Plus size={14} /> Cadastrar Aviso
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div style={{ display: 'flex', gap: '0.5rem', backgroundColor: 'hsl(var(--muted))', padding: '0.75rem', borderRadius: '8px', border: '1px solid hsl(var(--border))', marginTop: '0.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
                     <input 
@@ -617,17 +582,21 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
 
               <div className="form-group">
                 <label>Condutor *</label>
-                <select
+                <input
+                  type="text"
                   className="form-control"
-                  value={driver}
+                  value={driver || (currentUser ? currentUser.name : '')}
                   onChange={(e) => setDriver(e.target.value)}
+                  placeholder="Nome do condutor"
                   required
-                >
-                  <option value="">Selecione o motorista...</option>
-                  {drivers.map(d => (
-                    <option key={d.id} value={d.name}>{d.name}</option>
-                  ))}
-                </select>
+                  readOnly={!!(currentUser && currentUser.name)}
+                  style={currentUser && currentUser.name ? { backgroundColor: 'hsl(var(--muted))', cursor: 'not-allowed', fontWeight: 600 } : {}}
+                />
+                {currentUser && currentUser.name && (
+                  <span style={{ fontSize: '0.7rem', color: 'hsl(var(--muted-foreground))' }}>
+                    Preenchido automaticamente com seu usuário logado
+                  </span>
+                )}
               </div>
 
               {/* Opção de Cadastro Parcial */}
@@ -845,88 +814,14 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                 </>
               )}
 
-              {/* Signature section */}
-              <div className="form-divider" />
-              <div className="section-subtitle-form">Assinatura do Condutor</div>
-
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <label>Método de Assinatura</label>
-                  <div style={{ display: 'flex', gap: '0.25rem' }}>
-                    <button
-                      type="button"
-                      className={`btn btn-secondary btn-icon ${signatureMode === 'draw' ? 'btn-primary' : ''}`}
-                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', height: '28px' }}
-                      onClick={() => setSignatureMode('draw')}
-                    >
-                      <PenTool size={12} /> Desenhar
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn btn-secondary btn-icon ${signatureMode === 'type' ? 'btn-primary' : ''}`}
-                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', height: '28px' }}
-                      onClick={() => setSignatureMode('type')}
-                    >
-                      <Type size={12} /> Digitar
-                    </button>
-                  </div>
-                </div>
-
-                {signatureMode === 'draw' ? (
-                  <div className="signature-container">
-                    <canvas
-                      ref={canvasRef}
-                      width={600}
-                      height={120}
-                      className="signature-pad-canvas"
-                      onMouseDown={startDrawing}
-                      onMouseMove={draw}
-                      onMouseUp={stopDrawing}
-                      onMouseLeave={stopDrawing}
-                      onTouchStart={startDrawing}
-                      onTouchMove={draw}
-                      onTouchEnd={stopDrawing}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                        onClick={clearCanvas}
-                      >
-                        <RefreshCw size={12} /> Limpar Desenho
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="Nome completo para assinatura eletrônica"
-                      style={{ fontFamily: "'Outfit', cursive, sans-serif", fontStyle: 'italic', fontSize: '1.1rem', fontWeight: 600, letterSpacing: '0.5px' }}
-                      value={typedSignature}
-                      onChange={(e) => setTypedSignature(e.target.value)}
-                    />
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', textTransform: 'none', color: 'hsl(var(--muted-foreground))', fontSize: '0.75rem', marginTop: '0.25rem', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={signatureConfirmed}
-                        onChange={(e) => setSignatureConfirmed(e.target.checked)}
-                        style={{ width: '14px', height: '14px' }}
-                      />
-                      Declaro que as informações acima são verdadeiras e assino digitalmente este documento.
-                    </label>
-                  </div>
-                )}
-              </div>
-
             </div>
           </div>
 
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-            <button type="submit" className="btn btn-primary">Salvar Viagem</button>
+            <button type="submit" className="btn btn-primary">
+              {typeof window !== 'undefined' && !navigator.onLine ? 'Salvar Viagem (Offline)' : 'Salvar Viagem'}
+            </button>
           </div>
         </form>
       </div>
