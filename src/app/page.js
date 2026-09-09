@@ -27,6 +27,7 @@ import {
   Shield
 } from 'lucide-react';
 
+import { useRouter } from 'next/navigation';
 import TripFormModal from '@/components/TripFormModal';
 import VehicleModal from '@/components/VehicleModal';
 import DriverModal from '@/components/DriverModal';
@@ -44,6 +45,8 @@ import {
 } from '@/lib/offlineStorage';
 
 export default function Dashboard() {
+  const router = useRouter();
+
   // Session User
   const [user, setUser] = useState(null);
 
@@ -192,7 +195,7 @@ export default function Dashboard() {
           syncOfflineTrips();
         } else {
           setLoading(false);
-          window.location.href = '/login';
+          router.replace('/login');
         }
       } catch (error) {
         console.error('Session check error (trying offline cached session):', error);
@@ -202,7 +205,7 @@ export default function Dashboard() {
           fetchInitialData();
         } else {
           setLoading(false);
-          window.location.href = '/login';
+          router.replace('/login');
         }
       }
     };
@@ -223,7 +226,7 @@ export default function Dashboard() {
       });
       if (res.ok) {
         localStorage.removeItem('seapac-user-session');
-        window.location.href = '/login';
+        router.replace('/login');
       }
     } catch (err) {
       console.error('Logout error:', err);
