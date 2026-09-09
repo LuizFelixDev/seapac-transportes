@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Car, Mail, User, ShieldAlert, Loader2 } from 'lucide-react';
 
 export default function Login() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasClientId, setHasClientId] = useState(false);
@@ -100,7 +102,7 @@ export default function Login() {
       });
 
       if (res.ok) {
-        window.location.href = '/';
+        router.replace('/');
       } else {
         const errData = await res.json();
         setError(errData.error || 'Erro ao realizar login.');
@@ -136,7 +138,7 @@ export default function Login() {
       });
 
       if (res.ok) {
-        window.location.href = '/';
+        router.replace('/');
       } else {
         const errData = await res.json();
         setError(errData.error || 'Erro ao realizar login de demonstração.');

@@ -7,7 +7,7 @@ export function proxy(request) {
   // Define public paths that don't need auth
   const isLoginPage = pathname === '/login';
   const isAuthApi = pathname.startsWith('/api/auth');
-  const isNextInternal = pathname.startsWith('/_next') || pathname.startsWith('/static') || pathname === '/favicon.ico';
+  const isNextInternal = pathname.startsWith('/_next') || pathname.startsWith('/static') || pathname === '/favicon.ico' || pathname.startsWith('/icons');
 
   // Allow next internal assets, login page, and authentication APIs always
   if (isNextInternal || isAuthApi) {
@@ -33,7 +33,6 @@ export function proxy(request) {
   return NextResponse.next();
 }
 
-// Config to specify which paths the proxy runs on
 export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico).*)',

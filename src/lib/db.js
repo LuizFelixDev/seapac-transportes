@@ -12,12 +12,15 @@ function getClient() {
 }
 
 let schemaInitialized = false;
+let schemaPromise = null;
 
 async function ensureSchema() {
   if (schemaInitialized) return;
   if (!sql) return;
 
-  try {
+  if (!schemaPromise) {
+    schemaPromise = (async () => {
+      try {
     // 1. Criar tabela de veículos
     await sql`
       CREATE TABLE IF NOT EXISTS vehicles (
@@ -177,10 +180,15 @@ async function ensureSchema() {
       `;
     }
 
-    schemaInitialized = true;
-  } catch (error) {
-    console.error('Falha ao inicializar o schema do banco de dados:', error);
+        schemaInitialized = true;
+      } catch (error) {
+        console.error('Falha ao inicializar o schema do banco de dados:', error);
+        schemaPromise = null;
+      }
+    })();
   }
+
+  return schemaPromise;
 }
 
 // --- TRIPS CRUD ---
