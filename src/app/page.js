@@ -198,7 +198,9 @@ export default function Dashboard() {
           syncOfflineTrips();
         } else if (!cachedUserStr) {
           setInitialChecking(false);
-          router.replace('/login');
+          setTimeout(() => {
+            if (typeof window !== 'undefined') window.location.replace('/login');
+          }, 50);
         } else {
           setInitialChecking(false);
           fetchInitialData();
@@ -213,11 +215,15 @@ export default function Dashboard() {
             fetchInitialData();
           } catch (e) {
             setInitialChecking(false);
-            router.replace('/login');
+            setTimeout(() => {
+              if (typeof window !== 'undefined') window.location.replace('/login');
+            }, 50);
           }
         } else {
           setInitialChecking(false);
-          router.replace('/login');
+          setTimeout(() => {
+            if (typeof window !== 'undefined') window.location.replace('/login');
+          }, 50);
         }
       }
     };
