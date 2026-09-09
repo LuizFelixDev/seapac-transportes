@@ -926,7 +926,9 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
 
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-            <button type="submit" className="btn btn-primary">Salvar Viagem</button>
+            <button type="submit" className="btn btn-primary">
+              {typeof window !== 'undefined' && !navigator.onLine ? 'Salvar Viagem (Offline)' : 'Salvar Viagem'}
+            </button>
           </div>
         </form>
       </div>

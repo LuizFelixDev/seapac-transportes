@@ -31,6 +31,14 @@ import TripFormModal from '@/components/TripFormModal';
 import VehicleModal from '@/components/VehicleModal';
 import DriverModal from '@/components/DriverModal';
 import UserManagementModal from '@/components/UserManagementModal';
+import OfflineBanner from '@/components/OfflineBanner';
+import { 
+  savePendingTrip, 
+  getPendingTrips, 
+  removePendingTrip, 
+  cacheReferenceData, 
+  getCachedReferenceData 
+} from '@/lib/offlineStorage';
 
 export default function Dashboard() {
   // Session User
@@ -51,6 +59,10 @@ export default function Dashboard() {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
+  // Offline Sync States
+  const [pendingTripsCount, setPendingTripsCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -81,26 +93,97 @@ export default function Dashboard() {
     setTheme(savedTheme);
     document.documentElement.setAttribute('data-theme', savedTheme);
 
-    let intervalId;
+    // Sync offline trips if connection is restored
+    const syncOfflineTrips = async () => {
+      if (typeof window === 'undefined' || !navigator.onLine) return;
+      try {
+        const pendingList = await getPendingTrips();
+        if (!pendingList || pendingList.length === 0) {
+          setPendingTripsCount(0);
+          return;
+        }
+
+        setIsSyncing(true);
+        let successCount = 0;
+
+        for (const pendingTrip of pendingList) {
+          const { offlineId, pendingSync, createdAtOffline, ...tripPayload } = pendingTrip;
+          try {
+            const response = await fetch('/api/trips', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(tripPayload)
+            });
+            if (response.ok) {
+              await removePendingTrip(pendingTrip.offlineId);
+              successCount++;
+            }
+          } catch (err) {
+            console.error(`Falha ao enviar viagem offline ${pendingTrip.offlineId}:`, err);
+          }
+        }
+
+        if (successCount > 0) {
+          await fetchInitialData();
+          alert(`${successCount} viagem(ns) salva(s) offline foi(ram) sincronizada(s) com sucesso no banco de dados!`);
+        }
+
+        const remaining = await getPendingTrips();
+        setPendingTripsCount(remaining.length);
+      } catch (error) {
+        console.error('Erro na sincronização de viagens offline:', error);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    const handleOnline = () => {
+      syncOfflineTrips();
+    };
+
+    window.addEventListener('online', handleOnline);
+
+    getPendingTrips().then(items => {
+      setPendingTripsCount(items.length);
+    });
 
     const checkSessionAndFetch = async () => {
       try {
+        if (!navigator.onLine) {
+          const cachedUser = localStorage.getItem('seapac-user-session');
+          if (cachedUser) {
+            setUser(JSON.parse(cachedUser));
+            fetchInitialData();
+            return;
+          }
+        }
+
         const res = await fetch('/api/auth/session');
         const data = await res.json();
         if (data && data.user) {
           setUser(data.user);
+          localStorage.setItem('seapac-user-session', JSON.stringify(data.user));
           fetchInitialData();
 
           if (data.user.role === 'adm') {
             fetchPendingRequestsCount();
-            intervalId = setInterval(fetchPendingRequestsCount, 15000); // Poll every 15s
+            intervalId = setInterval(fetchPendingRequestsCount, 15000);
           }
+
+          // Trigger sync check on login/session load
+          syncOfflineTrips();
         } else {
           window.location.href = '/login';
         }
       } catch (error) {
-        console.error('Session check error:', error);
-        window.location.href = '/login';
+        console.error('Session check error (trying offline cached session):', error);
+        const cachedUser = localStorage.getItem('seapac-user-session');
+        if (cachedUser) {
+          setUser(JSON.parse(cachedUser));
+          fetchInitialData();
+        } else {
+          window.location.href = '/login';
+        }
       }
     };
 
@@ -108,6 +191,7 @@ export default function Dashboard() {
 
     return () => {
       if (intervalId) clearInterval(intervalId);
+      window.removeEventListener('online', handleOnline);
     };
   }, []);
 
@@ -117,6 +201,7 @@ export default function Dashboard() {
         method: 'DELETE'
       });
       if (res.ok) {
+        localStorage.removeItem('seapac-user-session');
         window.location.href = '/login';
       }
     } catch (err) {
@@ -124,29 +209,113 @@ export default function Dashboard() {
     }
   };
 
+  const syncOfflineTrips = async () => {
+    if (typeof window === 'undefined' || !navigator.onLine) return;
+    try {
+      const pendingList = await getPendingTrips();
+      if (!pendingList || pendingList.length === 0) {
+        setPendingTripsCount(0);
+        return;
+      }
+
+      setIsSyncing(true);
+      let successCount = 0;
+
+      for (const pendingTrip of pendingList) {
+        const { offlineId, pendingSync, createdAtOffline, ...tripPayload } = pendingTrip;
+        try {
+          const response = await fetch('/api/trips', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(tripPayload)
+          });
+          if (response.ok) {
+            await removePendingTrip(pendingTrip.offlineId);
+            successCount++;
+          }
+        } catch (err) {
+          console.error(`Falha ao enviar viagem offline ${pendingTrip.offlineId}:`, err);
+        }
+      }
+
+      if (successCount > 0) {
+        await fetchInitialData();
+        alert(`${successCount} viagem(ns) salva(s) offline foi(ram) sincronizada(s) com sucesso no banco de dados!`);
+      }
+
+      const remaining = await getPendingTrips();
+      setPendingTripsCount(remaining.length);
+    } catch (error) {
+      console.error('Erro na sincronização de viagens offline:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const fetchInitialData = async () => {
     try {
       setLoading(true);
       
-      const [vehiclesRes, driversRes, tripsRes] = await Promise.all([
-        fetch('/api/vehicles'),
-        fetch('/api/drivers'),
-        fetch('/api/trips')
-      ]);
+      if (navigator.onLine) {
+        const [vehiclesRes, driversRes, tripsRes] = await Promise.all([
+          fetch('/api/vehicles'),
+          fetch('/api/drivers'),
+          fetch('/api/trips')
+        ]);
 
-      const vehiclesData = await vehiclesRes.json();
-      const driversData = await driversRes.json();
-      const tripsData = await tripsRes.json();
+        if (vehiclesRes.ok && driversRes.ok && tripsRes.ok) {
+          const vehiclesData = await vehiclesRes.json();
+          const driversData = await driversRes.json();
+          const tripsData = await tripsRes.json();
 
-      setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
-      setDrivers(Array.isArray(driversData) ? driversData : []);
-      setTrips(Array.isArray(tripsData) ? tripsData : []);
+          const vList = Array.isArray(vehiclesData) ? vehiclesData : [];
+          const dList = Array.isArray(driversData) ? driversData : [];
+          const tList = Array.isArray(tripsData) ? tripsData : [];
 
-      if (vehiclesData.length > 0) {
-        setActiveVehicleId(vehiclesData[0].id);
+          setVehicles(vList);
+          setDrivers(dList);
+
+          // Cache in IndexedDB for offline access
+          cacheReferenceData('vehicles', vList);
+          cacheReferenceData('drivers', dList);
+          cacheReferenceData('trips', tList);
+
+          if (vList.length > 0 && !activeVehicleId) {
+            setActiveVehicleId(vList[0].id);
+          }
+
+          const pendingTrips = await getPendingTrips();
+          setPendingTripsCount(pendingTrips.length);
+          setTrips([...pendingTrips, ...tList]);
+          return;
+        }
+      }
+
+      // Offline Fallback
+      const cachedVehicles = (await getCachedReferenceData('vehicles')) || [];
+      const cachedDrivers = (await getCachedReferenceData('drivers')) || [];
+      const cachedTrips = (await getCachedReferenceData('trips')) || [];
+      const pendingTrips = await getPendingTrips();
+
+      setVehicles(cachedVehicles);
+      setDrivers(cachedDrivers);
+      setPendingTripsCount(pendingTrips.length);
+      setTrips([...pendingTrips, ...cachedTrips]);
+
+      if (cachedVehicles.length > 0 && !activeVehicleId) {
+        setActiveVehicleId(cachedVehicles[0].id);
       }
     } catch (error) {
-      console.error('Erro ao buscar dados iniciais:', error);
+      console.error('Erro ao carregar dados iniciais (usando cache offline):', error);
+      const cachedVehicles = (await getCachedReferenceData('vehicles')) || [];
+      const cachedDrivers = (await getCachedReferenceData('drivers')) || [];
+      const cachedTrips = (await getCachedReferenceData('trips')) || [];
+      const pendingTrips = await getPendingTrips();
+
+      setVehicles(cachedVehicles);
+      setDrivers(cachedDrivers);
+      setPendingTripsCount(pendingTrips.length);
+      setTrips([...pendingTrips, ...cachedTrips]);
     } finally {
       setLoading(false);
     }
@@ -293,11 +462,36 @@ export default function Dashboard() {
     }
   };
 
-  // CRUD handlers for Trips
+  // CRUD handlers for Trips (with Offline Support)
   const handleCreateOrUpdateTrip = async (formData) => {
+    const isOffline = typeof window !== 'undefined' && !navigator.onLine;
+
+    if (isOffline) {
+      try {
+        const savedItem = await savePendingTrip(formData);
+        setTrips(prev => [savedItem, ...prev]);
+
+        const pendingList = await getPendingTrips();
+        setPendingTripsCount(pendingList.length);
+
+        if (formData.vehicleId) {
+          setActiveVehicleId(formData.vehicleId);
+        }
+
+        setIsTripModalOpen(false);
+        setSelectedTrip(null);
+        alert('Viagem salva localmente no modo offline! Ela será enviada ao banco de dados assim que você se conectar à internet.');
+        return;
+      } catch (err) {
+        console.error('Erro ao salvar viagem offline:', err);
+        alert('Erro ao salvar a viagem localmente.');
+        return;
+      }
+    }
+
     try {
       let response;
-      if (selectedTrip) {
+      if (selectedTrip && !selectedTrip.pendingSync) {
         // Edit Mode
         response = await fetch(`/api/trips/${selectedTrip.id}`, {
           method: 'PUT',
@@ -313,13 +507,10 @@ export default function Dashboard() {
         });
       }
 
-      if (response.ok) {
-        // Refresh local data
-        const updatedRes = await fetch('/api/trips');
-        const updatedData = await updatedRes.json();
-        setTrips(Array.isArray(updatedData) ? updatedData : []);
-        
-        // Auto-switch dashboard active vehicle to the saved trip's vehicle to keep it in view
+      if (response && response.ok) {
+        await fetchInitialData();
+        await syncOfflineTrips();
+
         if (formData.vehicleId) {
           setActiveVehicleId(formData.vehicleId);
         }
@@ -331,7 +522,24 @@ export default function Dashboard() {
         alert(error.error || 'Erro ao processar viagem.');
       }
     } catch (error) {
-      console.error('Erro ao salvar viagem:', error);
+      console.error('Erro ao salvar viagem online, registrando offline:', error);
+      try {
+        const savedItem = await savePendingTrip(formData);
+        setTrips(prev => [savedItem, ...prev]);
+
+        const pendingList = await getPendingTrips();
+        setPendingTripsCount(pendingList.length);
+
+        if (formData.vehicleId) {
+          setActiveVehicleId(formData.vehicleId);
+        }
+
+        setIsTripModalOpen(false);
+        setSelectedTrip(null);
+        alert('Conexão instável. A viagem foi salva offline no dispositivo e será enviada automaticamente quando a internet voltar.');
+      } catch (err) {
+        alert('Erro ao processar a viagem.');
+      }
     }
   };
 
@@ -625,6 +833,15 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Offline Status & Sync Banner */}
+      <div className="print-hide" style={{ padding: '0 1.5rem', marginTop: '1rem' }}>
+        <OfflineBanner 
+          pendingCount={pendingTripsCount} 
+          isSyncing={isSyncing} 
+          onSyncNow={syncOfflineTrips} 
+        />
+      </div>
+
       {/* STATS OVERVIEW CARDS */}
       <div className="dashboard-grid">
         <div className="metric-card">
@@ -874,8 +1091,29 @@ export default function Dashboard() {
                     : 'Editar/Finalizar Viagem';
                   
                   return (
-                    <tr key={t.id} className={t.isPartial ? 'trip-partial' : ''}>
-                      <td>{new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                    <tr key={t.id || t.offlineId} className={t.isPartial ? 'trip-partial' : ''}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <span>{new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+                          {t.pendingSync && (
+                            <span 
+                              style={{ 
+                                fontSize: '0.65rem', 
+                                fontWeight: 'bold', 
+                                padding: '2px 5px', 
+                                borderRadius: '4px', 
+                                backgroundColor: 'rgba(245, 158, 11, 0.2)', 
+                                color: '#b45309', 
+                                border: '1px solid rgba(245, 158, 11, 0.4)',
+                                whiteSpace: 'nowrap'
+                              }}
+                              title="Salvo localmente (modo offline). Será enviado ao banco de dados assim que conectar à internet."
+                            >
+                              Offline
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td style={{ fontWeight: 700 }}>{t.driver}</td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>
