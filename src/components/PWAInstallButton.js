@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Smartphone, X, Download, Info } from 'lucide-react';
+import { Smartphone, X, Download } from 'lucide-react';
 
 export default function PWAInstallButton() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -22,8 +22,13 @@ export default function PWAInstallButton() {
       const iosDevice = /iphone|ipad|ipod/.test(userAgent);
       setIsIOS(iosDevice);
 
+      if (window.deferredInstallPrompt) {
+        setDeferredPrompt(window.deferredInstallPrompt);
+      }
+
       const handleBeforeInstallPrompt = (e) => {
         e.preventDefault();
+        window.deferredInstallPrompt = e;
         setDeferredPrompt(e);
       };
 
@@ -31,6 +36,7 @@ export default function PWAInstallButton() {
 
       window.addEventListener('appinstalled', () => {
         setDeferredPrompt(null);
+        window.deferredInstallPrompt = null;
         setIsStandalone(true);
       });
 
@@ -41,11 +47,14 @@ export default function PWAInstallButton() {
   }, []);
 
   const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
+    const promptEvent = deferredPrompt || (typeof window !== 'undefined' ? window.deferredInstallPrompt : null);
+
+    if (promptEvent) {
+      promptEvent.prompt();
+      const { outcome } = await promptEvent.userChoice;
       if (outcome === 'accepted') {
         setDeferredPrompt(null);
+        if (typeof window !== 'undefined') window.deferredInstallPrompt = null;
       }
     } else {
       setShowTip(!showTip);
