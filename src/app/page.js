@@ -156,6 +156,10 @@ export default function Dashboard() {
       setPendingTripsCount(items.length);
     });
 
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 4000);
+
     const checkSessionAndFetch = async () => {
       try {
         if (typeof window !== 'undefined' && !navigator.onLine) {
@@ -167,8 +171,13 @@ export default function Dashboard() {
           }
         }
 
-        const res = await fetch('/api/auth/session');
+        const controller = new AbortController();
+        const sessionTimeout = setTimeout(() => controller.abort(), 3500);
+
+        const res = await fetch('/api/auth/session', { signal: controller.signal });
+        clearTimeout(sessionTimeout);
         const data = await res.json();
+
         if (data && data.user) {
           setUser(data.user);
           localStorage.setItem('seapac-user-session', JSON.stringify(data.user));
@@ -201,6 +210,7 @@ export default function Dashboard() {
     checkSessionAndFetch();
 
     return () => {
+      clearTimeout(safetyTimer);
       if (intervalId) clearInterval(intervalId);
       window.removeEventListener('online', handleOnline);
     };
@@ -270,11 +280,15 @@ export default function Dashboard() {
       
       if (typeof window !== 'undefined' && navigator.onLine) {
         try {
+          const controller = new AbortController();
+          const fetchTimeout = setTimeout(() => controller.abort(), 3500);
+
           const [vehiclesRes, driversRes, tripsRes] = await Promise.all([
-            fetch('/api/vehicles'),
-            fetch('/api/drivers'),
-            fetch('/api/trips')
+            fetch('/api/vehicles', { signal: controller.signal }),
+            fetch('/api/drivers', { signal: controller.signal }),
+            fetch('/api/trips', { signal: controller.signal })
           ]);
+          clearTimeout(fetchTimeout);
 
           if (vehiclesRes.ok && driversRes.ok && tripsRes.ok) {
             const vehiclesData = await vehiclesRes.json();
