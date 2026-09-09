@@ -665,8 +665,7 @@ export default function Dashboard() {
       'KM Rodado',
       'KM Abastecimento', 
       'Quantidade Litros', 
-      'Tipo Combustivel', 
-      'Assinatura'
+      'Tipo Combustivel'
     ];
 
     // CSV Rows
@@ -682,8 +681,7 @@ export default function Dashboard() {
       Number(t.arrivalKm) - Number(t.departureKm),
       t.refuelKm || '',
       t.refuelLiters || '',
-      t.fuelType || '',
-      t.signature && t.signature.startsWith('data:image') ? 'Assinatura Desenho' : t.signature
+      t.fuelType || ''
     ]);
 
     const csvContent = '\uFEFF' + [
@@ -1075,21 +1073,19 @@ export default function Dashboard() {
                 <th style={{ width: '80px' }}>Rodados</th>
                 <th style={{ width: '120px' }}>Refil (KM / L)</th>
                 <th style={{ width: '60px' }}>A/G</th>
-                <th style={{ width: '140px' }}>Assinatura</th>
                 <th className="actions-header" style={{ width: '90px', textAlign: 'center' }}>Ações</th>
               </tr>
             </thead>
             <tbody>
               {currentTrips.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="empty-state">
+                  <td colSpan={11} className="empty-state">
                     Nenhuma viagem registrada com os filtros selecionados.
                   </td>
                 </tr>
               ) : (
                 currentTrips.map((t) => {
                   const rodados = t.arrivalKm ? (Number(t.arrivalKm) - Number(t.departureKm)) : null;
-                  const isImageSig = t.signature && t.signature.startsWith('data:image');
                   const canEdit = !t.isPartial || (user && t.createdBy === user.email);
                   const editTooltip = !canEdit 
                     ? `Apenas o usuário que cadastrou (${t.createdBy || 'desconhecido'}) pode finalizar.` 
@@ -1161,19 +1157,6 @@ export default function Dashboard() {
                           </span>
                         ) : (
                           '-'
-                        )}
-                      </td>
-                      <td className="signature-cell">
-                        {t.isPartial && !t.signature ? (
-                          <span className="partial-badge">Pendente</span>
-                        ) : isImageSig ? (
-                          <img 
-                            src={t.signature} 
-                            alt="Assinatura" 
-                            style={{ height: '24px', maxWidth: '120px', filter: theme === 'dark' ? 'invert(1) opacity(0.8)' : 'opacity(0.8)', mixBlendMode: 'multiply' }} 
-                          />
-                        ) : (
-                          t.signature || '-'
                         )}
                       </td>
                       <td className="actions-cell" style={{ textAlign: 'center' }}>

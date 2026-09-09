@@ -76,7 +76,6 @@ async function ensureSchema() {
         "refuelKm" NUMERIC(10, 2),
         "refuelLiters" NUMERIC(10, 2),
         "fuelType" TEXT,
-        signature TEXT,
         "isPartial" BOOLEAN DEFAULT FALSE,
         "createdBy" TEXT
       );
@@ -96,10 +95,15 @@ async function ensureSchema() {
         ADD COLUMN IF NOT EXISTS "createdBy" TEXT,
         ALTER COLUMN "routeTo" DROP NOT NULL,
         ALTER COLUMN "arrivalTime" DROP NOT NULL,
-        ALTER COLUMN "arrivalKm" DROP NOT NULL,
-        ALTER COLUMN "signature" DROP NOT NULL;
+        ALTER COLUMN "arrivalKm" DROP NOT NULL;
       `;
     }
+
+    // Remover coluna signature caso ainda exista na tabela
+    await sql`
+      ALTER TABLE trips 
+      DROP COLUMN IF EXISTS signature;
+    `;
 
     // Alterar colunas de KM de INTEGER para NUMERIC(10, 2) se necessário
     const columnCheck = await sql`
@@ -222,13 +226,12 @@ export async function addTrip(trip) {
     INSERT INTO trips (
       id, "vehicleId", date, driver, "routeFrom", "routeTo", 
       "departureTime", "departureKm", "arrivalTime", "arrivalKm", 
-      "refuelKm", "refuelLiters", "fuelType", signature, "isPartial", "createdBy"
+      "refuelKm", "refuelLiters", "fuelType", "isPartial", "createdBy"
     )
     VALUES (
       ${id}, ${trip.vehicleId}, ${trip.date}, ${trip.driver}, ${trip.routeFrom}, ${trip.routeTo || null},
       ${trip.departureTime}, ${departureKm}, ${trip.arrivalTime || null}, ${arrivalKm},
-      ${refuelKm}, ${refuelLiters}, ${trip.fuelType || ''}, ${trip.signature || null},
-      ${isPartial}, ${createdBy}
+      ${refuelKm}, ${refuelLiters}, ${trip.fuelType || ''}, ${isPartial}, ${createdBy}
     )
   `;
   
@@ -268,7 +271,6 @@ export async function updateTrip(id, updatedTrip) {
         "refuelKm" = ${refuelKm},
         "refuelLiters" = ${refuelLiters},
         "fuelType" = ${updatedTrip.fuelType || ''},
-        signature = ${updatedTrip.signature || null},
         "isPartial" = ${isPartial}
     WHERE id = ${id}
     RETURNING *
