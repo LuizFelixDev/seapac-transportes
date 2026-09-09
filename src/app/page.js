@@ -57,7 +57,8 @@ export default function Dashboard() {
   const [activeVehicleId, setActiveVehicleId] = useState('');
   
   // UI States
-  const [loading, setLoading] = useState(true);
+  const [initialChecking, setInitialChecking] = useState(true);
+  const [isFetchingData, setIsFetchingData] = useState(false);
   const [theme, setTheme] = useState('light');
   const [isTripModalOpen, setIsTripModalOpen] = useState(false);
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
@@ -159,23 +160,25 @@ export default function Dashboard() {
       setPendingTripsCount(items.length);
     });
 
-    const safetyTimer = setTimeout(() => {
-      setLoading(false);
-    }, 4000);
-
     const checkSessionAndFetch = async () => {
       try {
+        const cachedUserStr = typeof window !== 'undefined' ? localStorage.getItem('seapac-user-session') : null;
+        if (cachedUserStr) {
+          try {
+            const parsedUser = JSON.parse(cachedUserStr);
+            setUser(parsedUser);
+            setInitialChecking(false);
+          } catch (e) {}
+        }
+
         if (typeof window !== 'undefined' && !navigator.onLine) {
-          const cachedUser = localStorage.getItem('seapac-user-session');
-          if (cachedUser) {
-            setUser(JSON.parse(cachedUser));
-            fetchInitialData();
-            return;
-          }
+          fetchInitialData();
+          setInitialChecking(false);
+          return;
         }
 
         const controller = new AbortController();
-        const sessionTimeout = setTimeout(() => controller.abort(), 3500);
+        const sessionTimeout = setTimeout(() => controller.abort(), 2500);
 
         const res = await fetch('/api/auth/session', { signal: controller.signal });
         clearTimeout(sessionTimeout);
@@ -184,6 +187,7 @@ export default function Dashboard() {
         if (data && data.user) {
           setUser(data.user);
           localStorage.setItem('seapac-user-session', JSON.stringify(data.user));
+          setInitialChecking(false);
           fetchInitialData();
 
           if (data.user.role === 'adm') {
@@ -191,20 +195,28 @@ export default function Dashboard() {
             intervalId = setInterval(fetchPendingRequestsCount, 15000);
           }
 
-          // Trigger sync check on login/session load
           syncOfflineTrips();
-        } else {
-          setLoading(false);
+        } else if (!cachedUserStr) {
+          setInitialChecking(false);
           router.replace('/login');
+        } else {
+          setInitialChecking(false);
+          fetchInitialData();
         }
       } catch (error) {
-        console.error('Session check error (trying offline cached session):', error);
-        const cachedUser = typeof window !== 'undefined' ? localStorage.getItem('seapac-user-session') : null;
-        if (cachedUser) {
-          setUser(JSON.parse(cachedUser));
-          fetchInitialData();
+        console.error('Session check error:', error);
+        const cachedUserStr = typeof window !== 'undefined' ? localStorage.getItem('seapac-user-session') : null;
+        if (cachedUserStr) {
+          try {
+            setUser(JSON.parse(cachedUserStr));
+            setInitialChecking(false);
+            fetchInitialData();
+          } catch (e) {
+            setInitialChecking(false);
+            router.replace('/login');
+          }
         } else {
-          setLoading(false);
+          setInitialChecking(false);
           router.replace('/login');
         }
       }
@@ -213,7 +225,6 @@ export default function Dashboard() {
     checkSessionAndFetch();
 
     return () => {
-      clearTimeout(safetyTimer);
       if (intervalId) clearInterval(intervalId);
       window.removeEventListener('online', handleOnline);
     };
@@ -279,7 +290,7 @@ export default function Dashboard() {
   const fetchInitialData = async () => {
     let fetchedSuccessfully = false;
     try {
-      setLoading(true);
+      setIsFetchingData(true);
       
       if (typeof window !== 'undefined' && navigator.onLine) {
         try {
@@ -344,7 +355,8 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Erro ao carregar dados iniciais:', error);
     } finally {
-      setLoading(false);
+      setIsFetchingData(false);
+      setInitialChecking(false);
     }
   };
 
@@ -724,7 +736,7 @@ export default function Dashboard() {
     document.body.removeChild(link);
   };
 
-  if (loading) {
+  if (initialChecking && !user) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column', gap: '1rem', backgroundColor: 'hsl(var(--background))' }}>
         <div style={{ width: '40px', height: '40px', border: '4px solid hsl(var(--border))', borderTopColor: 'hsl(var(--primary))', borderRadius: '50%', animation: 'spin 1s infinite linear' }} />
@@ -1164,7 +1176,7 @@ export default function Dashboard() {
               {currentTrips.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="empty-state">
-                    Nenhuma viagem registrada com os filtros selecionados.
+                    {isFetchingData ? 'Carregando dados das viagens...' : 'Nenhuma viagem registrada com os filtros selecionados.'}
                   </td>
                 </tr>
               ) : (
