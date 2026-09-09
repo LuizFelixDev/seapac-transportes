@@ -1,13 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Smartphone, X, Download } from 'lucide-react';
+import { Smartphone, X, Download, Info } from 'lucide-react';
 
 export default function PWAInstallButton() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [isInstallable, setIsInstallable] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
-  const [showIOSTip, setShowIOSTip] = useState(false);
+  const [showTip, setShowTip] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
@@ -26,14 +25,13 @@ export default function PWAInstallButton() {
       const handleBeforeInstallPrompt = (e) => {
         e.preventDefault();
         setDeferredPrompt(e);
-        setIsInstallable(true);
       };
 
       window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
       window.addEventListener('appinstalled', () => {
-        setIsInstallable(false);
         setDeferredPrompt(null);
+        setIsStandalone(true);
       });
 
       return () => {
@@ -43,83 +41,96 @@ export default function PWAInstallButton() {
   }, []);
 
   const handleInstallClick = async () => {
-    if (isIOS) {
-      setShowIOSTip(!showIOSTip);
-      return;
-    }
-
-    if (!deferredPrompt) {
-      alert('Para instalar o app, use a opção "Adicionar à tela inicial" no menu do seu navegador.');
-      return;
-    }
-
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    
-    if (outcome === 'accepted') {
-      setIsInstallable(false);
-      setDeferredPrompt(null);
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    } else {
+      setShowTip(!showTip);
     }
   };
 
   if (isStandalone) return null;
-
-  // Show if installable prompt is available OR if on mobile/iOS
-  if (!isInstallable && !isIOS) return null;
 
   return (
     <div style={{ position: 'relative', display: 'inline-block' }}>
       <button
         type="button"
         onClick={handleInstallClick}
-        className="btn btn-secondary"
+        className="btn pwa-install-btn"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: '0.35rem',
-          fontSize: '0.75rem',
-          fontWeight: 600,
-          padding: '0.3rem 0.6rem',
-          height: '32px',
-          borderRadius: '8px',
-          cursor: 'pointer'
+          fontSize: '0.78rem',
+          fontWeight: 700,
+          padding: '0.35rem 0.75rem',
+          height: '34px',
+          borderRadius: '10px',
+          cursor: 'pointer',
+          backgroundColor: 'hsl(var(--primary))',
+          color: '#ffffff',
+          border: 'none',
+          boxShadow: '0 2px 8px rgba(var(--primary-rgb), 0.3)',
+          transition: 'all 0.2s ease',
+          whiteSpace: 'nowrap'
         }}
-        title="Instalar aplicativo SEAPAC no dispositivo"
+        title="Instalar aplicativo SEAPAC no celular/computador"
       >
-        <Smartphone size={15} style={{ color: 'hsl(var(--primary))' }} />
+        <Smartphone size={16} />
         <span>Baixar App</span>
       </button>
 
-      {showIOSTip && (
+      {showTip && (
         <div 
+          className="glass"
           style={{
             position: 'absolute',
-            top: '115%',
+            top: '120%',
             right: 0,
-            zIndex: 999,
-            width: '260px',
+            zIndex: 9999,
+            width: '290px',
             backgroundColor: 'hsl(var(--card))',
             color: 'hsl(var(--card-foreground))',
-            border: '1px solid hsl(var(--border))',
-            borderRadius: '10px',
-            padding: '0.85rem',
-            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)',
-            fontSize: '0.75rem'
+            border: '1px solid hsl(var(--primary))',
+            borderRadius: '14px',
+            padding: '1rem',
+            boxShadow: '0 12px 30px rgba(0,0,0,0.25)',
+            fontSize: '0.8rem',
+            textAlign: 'left'
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-            <strong style={{ color: 'hsl(var(--primary))' }}>Instalar no iPhone / iPad:</strong>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <strong style={{ color: 'hsl(var(--primary))', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem' }}>
+              <Download size={16} /> Instalar Aplicativo
+            </strong>
             <button 
-              onClick={() => setShowIOSTip(false)} 
+              onClick={() => setShowTip(false)} 
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--muted-foreground))' }}
             >
-              <X size={14} />
+              <X size={16} />
             </button>
           </div>
-          <ol style={{ paddingLeft: '1.2rem', margin: 0, lineHeight: 1.4 }}>
-            <li>Toque no ícone <strong>Compartilhar</strong> no Safari.</li>
-            <li>Selecione <strong>Adicionar à Tela de Início</strong>.</li>
-          </ol>
+
+          {isIOS ? (
+            <div>
+              <p style={{ fontWeight: 700, marginBottom: '0.4rem', color: 'hsl(var(--foreground))' }}>No iPhone / iPad (Safari):</p>
+              <ol style={{ paddingLeft: '1.2rem', margin: 0, lineHeight: 1.5, color: 'hsl(var(--muted-foreground))' }}>
+                <li>Toque no ícone <strong>Compartilhar</strong> (quadrado com seta pra cima no menu).</li>
+                <li>Role e selecione <strong>Adicionar à Tela de Início</strong>.</li>
+              </ol>
+            </div>
+          ) : (
+            <div>
+              <p style={{ fontWeight: 700, marginBottom: '0.4rem', color: 'hsl(var(--foreground))' }}>No Android / Chrome / Navegador:</p>
+              <ol style={{ paddingLeft: '1.2rem', margin: 0, lineHeight: 1.5, color: 'hsl(var(--muted-foreground))' }}>
+                <li>Toque nos <strong>3 pontinhos (⋮)</strong> no canto superior direito do navegador.</li>
+                <li>Selecione <strong>"Instalar aplicativo"</strong> ou <strong>"Adicionar à tela inicial"</strong>.</li>
+              </ol>
+            </div>
+          )}
         </div>
       )}
     </div>

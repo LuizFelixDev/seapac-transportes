@@ -762,6 +762,7 @@ export default function Dashboard() {
 
             return (
               <div 
+                className="vehicle-switcher-header"
                 style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
