@@ -158,7 +158,7 @@ export default function Dashboard() {
 
     const checkSessionAndFetch = async () => {
       try {
-        if (!navigator.onLine) {
+        if (typeof window !== 'undefined' && !navigator.onLine) {
           const cachedUser = localStorage.getItem('seapac-user-session');
           if (cachedUser) {
             setUser(JSON.parse(cachedUser));
@@ -182,15 +182,17 @@ export default function Dashboard() {
           // Trigger sync check on login/session load
           syncOfflineTrips();
         } else {
+          setLoading(false);
           window.location.href = '/login';
         }
       } catch (error) {
         console.error('Session check error (trying offline cached session):', error);
-        const cachedUser = localStorage.getItem('seapac-user-session');
+        const cachedUser = typeof window !== 'undefined' ? localStorage.getItem('seapac-user-session') : null;
         if (cachedUser) {
           setUser(JSON.parse(cachedUser));
           fetchInitialData();
         } else {
+          setLoading(false);
           window.location.href = '/login';
         }
       }
@@ -262,69 +264,68 @@ export default function Dashboard() {
   };
 
   const fetchInitialData = async () => {
+    let fetchedSuccessfully = false;
     try {
       setLoading(true);
       
-      if (navigator.onLine) {
-        const [vehiclesRes, driversRes, tripsRes] = await Promise.all([
-          fetch('/api/vehicles'),
-          fetch('/api/drivers'),
-          fetch('/api/trips')
-        ]);
+      if (typeof window !== 'undefined' && navigator.onLine) {
+        try {
+          const [vehiclesRes, driversRes, tripsRes] = await Promise.all([
+            fetch('/api/vehicles'),
+            fetch('/api/drivers'),
+            fetch('/api/trips')
+          ]);
 
-        if (vehiclesRes.ok && driversRes.ok && tripsRes.ok) {
-          const vehiclesData = await vehiclesRes.json();
-          const driversData = await driversRes.json();
-          const tripsData = await tripsRes.json();
+          if (vehiclesRes.ok && driversRes.ok && tripsRes.ok) {
+            const vehiclesData = await vehiclesRes.json();
+            const driversData = await driversRes.json();
+            const tripsData = await tripsRes.json();
 
-          const vList = Array.isArray(vehiclesData) ? vehiclesData : [];
-          const dList = Array.isArray(driversData) ? driversData : [];
-          const tList = Array.isArray(tripsData) ? tripsData : [];
+            const vList = Array.isArray(vehiclesData) ? vehiclesData : [];
+            const dList = Array.isArray(driversData) ? driversData : [];
+            const tList = Array.isArray(tripsData) ? tripsData : [];
 
-          setVehicles(vList);
-          setDrivers(dList);
+            setVehicles(vList);
+            setDrivers(dList);
 
-          // Cache in IndexedDB for offline access
-          cacheReferenceData('vehicles', vList);
-          cacheReferenceData('drivers', dList);
-          cacheReferenceData('trips', tList);
+            if (vList.length > 0 && !activeVehicleId) {
+              setActiveVehicleId(vList[0].id);
+            }
 
-          if (vList.length > 0 && !activeVehicleId) {
-            setActiveVehicleId(vList[0].id);
+            const pendingTrips = await getPendingTrips();
+            setPendingTripsCount(pendingTrips.length);
+            setTrips([...pendingTrips, ...tList]);
+
+            // Save to offline cache without blocking UI
+            cacheReferenceData('vehicles', vList).catch(() => {});
+            cacheReferenceData('drivers', dList).catch(() => {});
+            cacheReferenceData('trips', tList).catch(() => {});
+
+            fetchedSuccessfully = true;
           }
-
-          const pendingTrips = await getPendingTrips();
-          setPendingTripsCount(pendingTrips.length);
-          setTrips([...pendingTrips, ...tList]);
-          return;
+        } catch (netErr) {
+          console.warn('Erro ao buscar dados online, tentando cache local:', netErr);
         }
       }
 
-      // Offline Fallback
-      const cachedVehicles = (await getCachedReferenceData('vehicles')) || [];
-      const cachedDrivers = (await getCachedReferenceData('drivers')) || [];
-      const cachedTrips = (await getCachedReferenceData('trips')) || [];
-      const pendingTrips = await getPendingTrips();
+      if (!fetchedSuccessfully) {
+        // Fallback to local cache if offline or fetch failed
+        const cachedVehicles = (await getCachedReferenceData('vehicles')) || [];
+        const cachedDrivers = (await getCachedReferenceData('drivers')) || [];
+        const cachedTrips = (await getCachedReferenceData('trips')) || [];
+        const pendingTrips = await getPendingTrips();
 
-      setVehicles(cachedVehicles);
-      setDrivers(cachedDrivers);
-      setPendingTripsCount(pendingTrips.length);
-      setTrips([...pendingTrips, ...cachedTrips]);
+        setVehicles(cachedVehicles);
+        setDrivers(cachedDrivers);
+        setPendingTripsCount(pendingTrips.length);
+        setTrips([...pendingTrips, ...cachedTrips]);
 
-      if (cachedVehicles.length > 0 && !activeVehicleId) {
-        setActiveVehicleId(cachedVehicles[0].id);
+        if (cachedVehicles.length > 0 && !activeVehicleId) {
+          setActiveVehicleId(cachedVehicles[0].id);
+        }
       }
     } catch (error) {
-      console.error('Erro ao carregar dados iniciais (usando cache offline):', error);
-      const cachedVehicles = (await getCachedReferenceData('vehicles')) || [];
-      const cachedDrivers = (await getCachedReferenceData('drivers')) || [];
-      const cachedTrips = (await getCachedReferenceData('trips')) || [];
-      const pendingTrips = await getPendingTrips();
-
-      setVehicles(cachedVehicles);
-      setDrivers(cachedDrivers);
-      setPendingTripsCount(pendingTrips.length);
-      setTrips([...pendingTrips, ...cachedTrips]);
+      console.error('Erro ao carregar dados iniciais:', error);
     } finally {
       setLoading(false);
     }

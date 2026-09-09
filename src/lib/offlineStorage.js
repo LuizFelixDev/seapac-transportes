@@ -9,6 +9,10 @@ function openDB() {
       return reject(new Error('IndexedDB não é suportado neste ambiente.'));
     }
 
+    const timer = setTimeout(() => {
+      reject(new Error('IndexedDB request timed out.'));
+    }, 2000);
+
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = (event) => {
@@ -21,8 +25,20 @@ function openDB() {
       }
     };
 
-    request.onsuccess = (event) => resolve(event.target.result);
-    request.onerror = (event) => reject(event.target.error);
+    request.onsuccess = (event) => {
+      clearTimeout(timer);
+      resolve(event.target.result);
+    };
+
+    request.onerror = (event) => {
+      clearTimeout(timer);
+      reject(event.target.error || new Error('Erro ao abrir IndexedDB.'));
+    };
+
+    request.onblocked = () => {
+      clearTimeout(timer);
+      reject(new Error('Abertura do IndexedDB bloqueada.'));
+    };
   });
 }
 
