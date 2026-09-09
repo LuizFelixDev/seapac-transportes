@@ -88,6 +88,8 @@ export default function Dashboard() {
 
   // Load Initial Data & Check Session
   useEffect(() => {
+    let intervalId;
+
     // Load theme from localStorage
     const savedTheme = localStorage.getItem('seapac-theme') || 'light';
     setTheme(savedTheme);
