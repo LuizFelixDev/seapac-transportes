@@ -85,22 +85,14 @@ async function ensureSchema() {
     `;
 
     // Garantir que as colunas novas existam e remover restrições NOT NULL antigas
-    const partialColumnCheck = await sql`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'trips' AND column_name = 'isPartial';
+    await sql`
+      ALTER TABLE trips 
+      ADD COLUMN IF NOT EXISTS "isPartial" BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS "createdBy" TEXT,
+      ALTER COLUMN "routeTo" DROP NOT NULL,
+      ALTER COLUMN "arrivalTime" DROP NOT NULL,
+      ALTER COLUMN "arrivalKm" DROP NOT NULL;
     `;
-    if (partialColumnCheck.length === 0) {
-      console.log('Migrando tabela trips para suportar viagens parciais...');
-      await sql`
-        ALTER TABLE trips 
-        ADD COLUMN IF NOT EXISTS "isPartial" BOOLEAN DEFAULT FALSE,
-        ADD COLUMN IF NOT EXISTS "createdBy" TEXT,
-        ALTER COLUMN "routeTo" DROP NOT NULL,
-        ALTER COLUMN "arrivalTime" DROP NOT NULL,
-        ALTER COLUMN "arrivalKm" DROP NOT NULL;
-      `;
-    }
 
     // Remover coluna signature caso ainda exista na tabela
     await sql`
@@ -172,11 +164,11 @@ async function ensureSchema() {
     const tripsCount = await sql`SELECT COUNT(*)::int FROM trips`;
     if (tripsCount[0].count === 0) {
       await sql`
-        INSERT INTO trips (id, "vehicleId", date, driver, "routeFrom", "routeTo", "departureTime", "departureKm", "arrivalTime", "arrivalKm", "refuelKm", "refuelLiters", "fuelType", signature)
+        INSERT INTO trips (id, "vehicleId", date, driver, "routeFrom", "routeTo", "departureTime", "departureKm", "arrivalTime", "arrivalKm", "refuelKm", "refuelLiters", "fuelType", "isPartial", "createdBy")
         VALUES 
-          ('1', '1', '2026-08-01', 'Francisco Silva', 'Natal', 'Mossoró', '07:00', 125400, '11:30', 125680, 125550, 35.5, 'G', 'Francisco Silva'),
-          ('2', '1', '2026-08-02', 'Maria Sousa', 'Mossoró', 'Caicó', '13:00', 125680, '16:45', 125850, null, null, '', 'Maria Sousa'),
-          ('3', '1', '2026-08-03', 'João Medeiros', 'Caicó', 'Natal', '08:00', 125850, '12:15', 126130, 126000, 40.2, 'A', 'João Medeiros');
+          ('1', '1', '2026-08-01', 'Francisco Silva', 'Natal', 'Mossoró', '07:00', 125400, '11:30', 125680, 125550, 35.5, 'G', false, 'admin@seapac.org'),
+          ('2', '1', '2026-08-02', 'Maria Sousa', 'Mossoró', 'Caicó', '13:00', 125680, '16:45', 125850, null, null, '', false, 'admin@seapac.org'),
+          ('3', '1', '2026-08-03', 'João Medeiros', 'Caicó', 'Natal', '08:00', 125850, '12:15', 126130, 126000, 40.2, 'A', false, 'admin@seapac.org');
       `;
     }
 
