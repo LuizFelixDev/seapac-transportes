@@ -107,10 +107,10 @@ export default function OilChangeModal({
               <span>{needsWarning ? '⚠️ Troca de Óleo Requerida!' : '✅ Troca de Óleo em Dia'}</span>
             </div>
             <div style={{ fontSize: '0.8rem', opacity: 0.9 }}>
-              Quilometragem Atual: <strong>{currentKm.toLocaleString('pt-BR')} km</strong> | Última Troca Registrada: <strong>{lastChangeKm.toLocaleString('pt-BR')} km</strong>
+              Quilometragem Atual: <strong>{Number(currentKm).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} km</strong> | Última Troca Registrada: <strong>{Number(lastChangeKm).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} km</strong>
             </div>
             <div style={{ fontSize: '0.8rem', fontWeight: 600, marginTop: '0.1rem' }}>
-              Percorridos desde a última troca: <span style={{ textDecoration: 'underline' }}>{kmDrivenSince.toLocaleString('pt-BR')} km</span> / 10.000 km
+              Percorridos desde a última troca: <span style={{ textDecoration: 'underline' }}>{Number(kmDrivenSince).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} km</span> / 10.000 km
             </div>
           </div>
 
