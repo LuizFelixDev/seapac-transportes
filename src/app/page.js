@@ -24,7 +24,8 @@ import {
   FileText,
   Percent,
   LogOut,
-  Shield
+  Shield,
+  Droplet
 } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
@@ -35,7 +36,8 @@ import UserManagementModal from '@/components/UserManagementModal';
 import OfflineBanner from '@/components/OfflineBanner';
 import PWAInstallButton from '@/components/PWAInstallButton';
 import VehicleObservationsModal from '@/components/VehicleObservationsModal';
-import { parseVehicleObservations } from '@/lib/vehicleUtils';
+import OilChangeModal from '@/components/OilChangeModal';
+import { parseVehicleObservations, checkOilChangeStatus, createOilChangeRecord } from '@/lib/vehicleUtils';
 import { 
   savePendingTrip, 
   getPendingTrips, 
@@ -70,6 +72,11 @@ export default function Dashboard() {
   // Vehicle Observations Modal State
   const [selectedObsVehicle, setSelectedObsVehicle] = useState(null);
   const [isObsModalOpen, setIsObsModalOpen] = useState(false);
+
+  // Oil Change Modal State
+  const [selectedOilVehicle, setSelectedOilVehicle] = useState(null);
+  const [selectedOilVehicleKm, setSelectedOilVehicleKm] = useState(0);
+  const [isOilModalOpen, setIsOilModalOpen] = useState(false);
 
   // Offline Sync States
   const [pendingTripsCount, setPendingTripsCount] = useState(0);
@@ -391,6 +398,23 @@ export default function Dashboard() {
     })[0];
   }, [trips, activeVehicleId]);
 
+  // Compute current max KM for active vehicle
+  const activeVehicleMaxKm = useMemo(() => {
+    if (!activeVehicleId || !Array.isArray(trips)) return 0;
+    const vehicleTrips = trips.filter(t => t.vehicleId === activeVehicleId);
+    let maxKm = Number(activeVehicle?.lastOilChangeKm) || 0;
+    vehicleTrips.forEach(t => {
+      if (t.arrivalKm && Number(t.arrivalKm) > maxKm) maxKm = Number(t.arrivalKm);
+      if (t.departureKm && Number(t.departureKm) > maxKm) maxKm = Number(t.departureKm);
+    });
+    return maxKm;
+  }, [activeVehicleId, trips, activeVehicle]);
+
+  // Oil change status for active vehicle
+  const activeVehicleOilStatus = useMemo(() => {
+    return checkOilChangeStatus(activeVehicle, activeVehicleMaxKm);
+  }, [activeVehicle, activeVehicleMaxKm]);
+
   // Filtered trips for calculation and display
   const filteredTrips = useMemo(() => {
     if (!Array.isArray(trips)) return [];
@@ -632,6 +656,22 @@ export default function Dashboard() {
     }
   };
 
+  const handleSaveOilChange = async (vehicle, oilData) => {
+    try {
+      const updatedVehicle = createOilChangeRecord(
+        vehicle, 
+        oilData.km, 
+        oilData.date, 
+        oilData.notes, 
+        oilData.author
+      );
+      await handleUpdateVehicle(updatedVehicle);
+    } catch (err) {
+      console.error('Erro ao salvar troca de óleo:', err);
+      alert('Erro ao salvar a troca de óleo.');
+    }
+  };
+
   const handleUpdateVehicle = async (vehicleData) => {
     try {
       const response = await fetch('/api/vehicles', {
@@ -806,6 +846,7 @@ export default function Dashboard() {
             const activeV = vehicles.find(v => v.id === activeVehicleId);
             const obsList = parseVehicleObservations(activeV?.obs);
             const hasObs = obsList.length > 0;
+            const needsOilAlert = activeVehicleOilStatus.needsOilChange;
 
             return (
               <div 
@@ -815,25 +856,25 @@ export default function Dashboard() {
                   alignItems: 'center', 
                   gap: '0.4rem', 
                   marginRight: '0.5rem',
-                  padding: hasObs ? '0.2rem 0.55rem' : '0',
-                  backgroundColor: hasObs ? '#fffbeb' : 'transparent',
-                  border: hasObs ? '1px solid #fde68a' : 'none',
+                  padding: (needsOilAlert || hasObs) ? '0.2rem 0.55rem' : '0',
+                  backgroundColor: needsOilAlert ? '#fef2f2' : (hasObs ? '#fffbeb' : 'transparent'),
+                  border: needsOilAlert ? '1px solid #fecaca' : (hasObs ? '1px solid #fde68a' : 'none'),
                   borderRadius: '8px',
                   transition: 'all 0.2s'
                 }}
               >
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: hasObs ? '#b45309' : 'hsl(var(--muted-foreground))' }}>
-                  {hasObs ? '⚠️ Veículo:' : 'Veículo:'}
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: needsOilAlert ? '#dc2626' : (hasObs ? '#b45309' : 'hsl(var(--muted-foreground))') }}>
+                  {needsOilAlert ? '🛢️ Óleo:' : (hasObs ? '⚠️ Veículo:' : 'Veículo:')}
                 </span>
                 <select 
                   className="select-field" 
                   style={{ 
                     minWidth: '150px', 
                     padding: '0.4rem 0.5rem',
-                    backgroundColor: hasObs ? '#fef3c7' : undefined,
-                    borderColor: hasObs ? '#fde68a' : undefined,
-                    color: hasObs ? '#92400e' : undefined,
-                    fontWeight: hasObs ? 700 : undefined
+                    backgroundColor: needsOilAlert ? '#fee2e2' : (hasObs ? '#fef3c7' : undefined),
+                    borderColor: needsOilAlert ? '#fecaca' : (hasObs ? '#fde68a' : undefined),
+                    color: needsOilAlert ? '#991b1b' : (hasObs ? '#92400e' : undefined),
+                    fontWeight: (needsOilAlert || hasObs) ? 700 : undefined
                   }} 
                   value={activeVehicleId}
                   onChange={(e) => {
@@ -843,16 +884,52 @@ export default function Dashboard() {
                 >
                   {vehicles.map(v => {
                     const count = parseVehicleObservations(v.obs).length;
+                    const vTrips = trips.filter(t => t.vehicleId === v.id);
+                    let vKm = Number(v.lastOilChangeKm) || 0;
+                    vTrips.forEach(t => {
+                      if (t.arrivalKm && Number(t.arrivalKm) > vKm) vKm = Number(t.arrivalKm);
+                      if (t.departureKm && Number(t.departureKm) > vKm) vKm = Number(t.departureKm);
+                    });
+                    const vOil = checkOilChangeStatus(v, vKm);
+
                     return (
                       <option key={v.id} value={v.id}>
-                        {count > 0 ? `⚠️ (${count} aviso${count > 1 ? 's' : ''}) ` : ''}
+                        {vOil.needsOilChange ? '🛢️ (Troca Óleo Vencida) ' : (count > 0 ? `⚠️ (${count} aviso${count > 1 ? 's' : ''}) ` : '')}
                         {v.name} ({v.plate})
                       </option>
                     );
                   })}
                 </select>
 
-                {hasObs && (
+                {needsOilAlert && (
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ 
+                      padding: '0.25rem 0.5rem', 
+                      fontSize: '0.7rem', 
+                      height: '28px', 
+                      backgroundColor: '#dc2626', 
+                      color: '#ffffff', 
+                      border: 'none',
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.2rem'
+                    }}
+                    onClick={() => {
+                      setSelectedOilVehicle(activeV);
+                      setSelectedOilVehicleKm(activeVehicleMaxKm);
+                      setIsOilModalOpen(true);
+                    }}
+                    title="Registrar Troca de Óleo para o veículo ativo"
+                  >
+                    🛢️ Troca Óleo!
+                  </button>
+                )}
+
+                {!needsOilAlert && hasObs && (
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -1063,6 +1140,38 @@ export default function Dashboard() {
               <div className="info-row">
                 <span className="info-label">Seguro:</span>
                 <span className="info-value" style={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>{activeVehicle.insurance}</span>
+              </div>
+              <div className="info-row" style={{ marginTop: '0.25rem', padding: '0.4rem 0.6rem', borderRadius: '6px', backgroundColor: activeVehicleOilStatus.needsOilChange ? '#fef2f2' : 'hsl(var(--muted))', border: activeVehicleOilStatus.needsOilChange ? '1px solid #fecaca' : '1px solid hsl(var(--border))' }}>
+                <span className="info-label" style={{ fontWeight: 700, color: activeVehicleOilStatus.needsOilChange ? '#dc2626' : undefined }}>
+                  🛢️ Troca de Óleo:
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span className="info-value" style={{ fontSize: '0.8rem', fontWeight: 700, color: activeVehicleOilStatus.needsOilChange ? '#dc2626' : undefined }}>
+                    {activeVehicleOilStatus.kmDriven.toLocaleString('pt-BR')}/10.000 km
+                  </span>
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{
+                      padding: '0.15rem 0.4rem',
+                      fontSize: '0.65rem',
+                      height: '22px',
+                      backgroundColor: activeVehicleOilStatus.needsOilChange ? '#dc2626' : '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => {
+                      setSelectedOilVehicle(activeVehicle);
+                      setSelectedOilVehicleKm(activeVehicleMaxKm);
+                      setIsOilModalOpen(true);
+                    }}
+                  >
+                    Registrar
+                  </button>
+                </div>
               </div>
               <div style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>
                 <strong>Endereço:</strong> {activeVehicle.address}
@@ -1378,6 +1487,12 @@ export default function Dashboard() {
         onUpdate={handleUpdateVehicle}
         onDelete={handleDeleteVehicle}
         currentUser={user}
+        onOpenOilChangeModal={(v, maxKm) => {
+          setSelectedOilVehicle(v);
+          setSelectedOilVehicleKm(maxKm);
+          setIsOilModalOpen(true);
+        }}
+        trips={trips}
       />
 
       {/* DRIVERS MODAL */}
@@ -1402,6 +1517,16 @@ export default function Dashboard() {
         onClose={() => setIsObsModalOpen(false)}
         vehicle={selectedObsVehicle}
         onUpdateVehicle={handleUpdateVehicle}
+        currentUser={user}
+      />
+
+      {/* OIL CHANGE MODAL */}
+      <OilChangeModal
+        isOpen={isOilModalOpen}
+        onClose={() => setIsOilModalOpen(false)}
+        vehicle={selectedOilVehicle}
+        currentKm={selectedOilVehicleKm}
+        onSaveOilChange={handleSaveOilChange}
         currentUser={user}
       />
 

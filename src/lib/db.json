@@ -7,7 +7,9 @@
       "institution": "SEAPAC",
       "insurance": "Dados Seguro: Mapfre Auto - Vigência: 2026/2027",
       "address": "Rua Trajano Murta, 3317 - Candelária - Natal/RN",
-      "obs": "Veículo em perfeito estado de conservação."
+      "obs": "Veículo em perfeito estado de conservação.",
+      "lastOilChangeKm": 125400,
+      "oilChangeHistory": []
     },
     {
       "name": "FIAT Mobi",
@@ -16,7 +18,9 @@
       "insurance": "Dados Seguro: --------",
       "address": "Endereço não informado",
       "obs": "",
-      "id": "1786103722012"
+      "id": "1786103722012",
+      "lastOilChangeKm": 0,
+      "oilChangeHistory": []
     }
   ],
   "drivers": [
