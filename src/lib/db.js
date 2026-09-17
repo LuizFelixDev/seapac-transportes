@@ -30,8 +30,16 @@ async function ensureSchema() {
         institution TEXT NOT NULL,
         insurance TEXT,
         address TEXT,
-        obs TEXT
+        obs TEXT,
+        "lastOilChangeKm" NUMERIC(10, 2) DEFAULT 0,
+        "oilChangeHistory" TEXT DEFAULT '[]'
       );
+    `;
+
+    await sql`
+      ALTER TABLE vehicles 
+      ADD COLUMN IF NOT EXISTS "lastOilChangeKm" NUMERIC(10, 2) DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS "oilChangeHistory" TEXT DEFAULT '[]';
     `;
 
     // 2. Criar tabela de motoristas
@@ -305,21 +313,27 @@ export async function addVehicle(vehicle) {
   await ensureSchema();
   const db = getClient();
   const id = crypto.randomUUID();
+  const lastOilChangeKm = vehicle.lastOilChangeKm !== undefined && vehicle.lastOilChangeKm !== null ? Number(vehicle.lastOilChangeKm) : 0;
+  const oilChangeHistory = typeof vehicle.oilChangeHistory === 'string' ? vehicle.oilChangeHistory : JSON.stringify(vehicle.oilChangeHistory || []);
   
   await db`
-    INSERT INTO vehicles (id, name, plate, institution, insurance, address, obs)
-    VALUES (${id}, ${vehicle.name}, ${vehicle.plate}, ${vehicle.institution}, ${vehicle.insurance || ''}, ${vehicle.address || ''}, ${vehicle.obs || ''})
+    INSERT INTO vehicles (id, name, plate, institution, insurance, address, obs, "lastOilChangeKm", "oilChangeHistory")
+    VALUES (${id}, ${vehicle.name}, ${vehicle.plate}, ${vehicle.institution}, ${vehicle.insurance || ''}, ${vehicle.address || ''}, ${vehicle.obs || ''}, ${lastOilChangeKm}, ${oilChangeHistory})
   `;
   
   return {
     ...vehicle,
-    id
+    id,
+    lastOilChangeKm,
+    oilChangeHistory
   };
 }
 
 export async function updateVehicle(id, updatedVehicle) {
   await ensureSchema();
   const db = getClient();
+  const lastOilChangeKm = updatedVehicle.lastOilChangeKm !== undefined && updatedVehicle.lastOilChangeKm !== null ? Number(updatedVehicle.lastOilChangeKm) : 0;
+  const oilChangeHistory = typeof updatedVehicle.oilChangeHistory === 'string' ? updatedVehicle.oilChangeHistory : JSON.stringify(updatedVehicle.oilChangeHistory || []);
   
   const result = await db`
     UPDATE vehicles
@@ -328,12 +342,21 @@ export async function updateVehicle(id, updatedVehicle) {
         institution = ${updatedVehicle.institution},
         insurance = ${updatedVehicle.insurance || ''},
         address = ${updatedVehicle.address || ''},
-        obs = ${updatedVehicle.obs || ''}
+        obs = ${updatedVehicle.obs || ''},
+        "lastOilChangeKm" = ${lastOilChangeKm},
+        "oilChangeHistory" = ${oilChangeHistory}
     WHERE id = ${id}
     RETURNING *
   `;
   
-  return result.length > 0 ? result[0] : null;
+  if (result.length > 0) {
+    const v = result[0];
+    return {
+      ...v,
+      lastOilChangeKm: v.lastOilChangeKm ? Number(v.lastOilChangeKm) : 0
+    };
+  }
+  return null;
 }
 
 export async function deleteVehicle(id) {

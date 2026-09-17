@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Check, Car, Edit3, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { parseVehicleObservations } from '@/lib/vehicleUtils';
+import { X, Plus, Trash2, Check, Car, Edit3, AlertTriangle, CheckCircle2, Droplet } from 'lucide-react';
+import { parseVehicleObservations, checkOilChangeStatus } from '@/lib/vehicleUtils';
 
 export default function VehicleModal({ 
   isOpen, 
@@ -13,7 +13,9 @@ export default function VehicleModal({
   onCreate, 
   onUpdate, 
   onDelete, 
-  currentUser 
+  currentUser,
+  onOpenOilChangeModal,
+  trips = []
 }) {
   const [formMode, setFormMode] = useState('list'); // 'list' | 'add' | 'edit'
   const [editingVehicleId, setEditingVehicleId] = useState(null);
@@ -131,22 +133,49 @@ export default function VehicleModal({
                   const obsList = parseVehicleObservations(v.obs);
                   const hasObs = obsList.length > 0;
 
+                  // Compute vehicle's latest max KM from trips
+                  const vehicleTrips = trips.filter(t => t.vehicleId === v.id);
+                  let vCurrentKm = Number(v.lastOilChangeKm) || 0;
+                  vehicleTrips.forEach(t => {
+                    if (t.arrivalKm && Number(t.arrivalKm) > vCurrentKm) vCurrentKm = Number(t.arrivalKm);
+                    if (t.departureKm && Number(t.departureKm) > vCurrentKm) vCurrentKm = Number(t.departureKm);
+                  });
+
+                  const oilStatus = checkOilChangeStatus(v, vCurrentKm);
+
                   return (
                     <div 
                       key={v.id} 
                       className={`fleet-item ${activeVehicleId === v.id ? 'active' : ''}`}
-                      style={hasObs ? { flexDirection: 'column', alignItems: 'stretch', backgroundColor: '#fffbeb', border: '1px solid #fde68a' } : {}}
+                      style={{
+                        flexDirection: 'column',
+                        alignItems: 'stretch',
+                        backgroundColor: oilStatus.needsOilChange ? '#fef2f2' : (hasObs ? '#fffbeb' : undefined),
+                        border: oilStatus.needsOilChange ? '1px solid #fecaca' : (hasObs ? '1px solid #fde68a' : undefined)
+                      }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', flex: 1 }} onClick={() => onSelect(v.id)}>
-                          <div style={{ color: activeVehicleId === v.id ? 'hsl(var(--primary))' : (hasObs ? '#b45309' : 'hsl(var(--muted-foreground))') }}>
+                          <div style={{ color: activeVehicleId === v.id ? 'hsl(var(--primary))' : (oilStatus.needsOilChange ? '#dc2626' : (hasObs ? '#b45309' : 'hsl(var(--muted-foreground))')) }}>
                             <Car size={20} />
                           </div>
                           <div style={{ textAlign: 'left' }}>
-                            <div style={{ fontWeight: 700, fontSize: '0.85rem', color: hasObs ? '#92400e' : undefined }}>
-                              {v.name} {hasObs && <span style={{ fontSize: '0.7rem', color: '#b45309', fontWeight: 800 }}>(⚠️ {obsList.length} aviso{obsList.length > 1 ? 's' : ''})</span>}
+                            <div style={{ fontWeight: 700, fontSize: '0.85rem', color: oilStatus.needsOilChange ? '#991b1b' : (hasObs ? '#92400e' : undefined) }}>
+                              {v.name} 
+                              {oilStatus.needsOilChange && (
+                                <span style={{ fontSize: '0.7rem', color: '#dc2626', fontWeight: 800, marginLeft: '0.4rem' }}>
+                                  🛢️ (Troca de Óleo Vencida: {oilStatus.kmDriven.toLocaleString('pt-BR')} km)
+                                </span>
+                              )}
+                              {!oilStatus.needsOilChange && hasObs && (
+                                <span style={{ fontSize: '0.7rem', color: '#b45309', fontWeight: 800, marginLeft: '0.4rem' }}>
+                                  (⚠️ {obsList.length} aviso{obsList.length > 1 ? 's' : ''})
+                                </span>
+                              )}
                             </div>
-                            <div style={{ fontSize: '0.75rem', color: hasObs ? '#b45309' : 'hsl(var(--muted-foreground))' }}>Placa: {v.plate} | {v.institution}</div>
+                            <div style={{ fontSize: '0.75rem', color: oilStatus.needsOilChange ? '#b91c1c' : (hasObs ? '#b45309' : 'hsl(var(--muted-foreground))') }}>
+                              Placa: {v.plate} | {v.institution} | Óleo: {oilStatus.kmDriven.toLocaleString('pt-BR')}/10.000 km
+                            </div>
                           </div>
                         </div>
                         
@@ -155,6 +184,33 @@ export default function VehicleModal({
                             <span style={{ color: 'hsl(var(--primary))', display: 'flex', alignItems: 'center', marginRight: '0.25rem' }}>
                               <Check size={16} />
                             </span>
+                          )}
+
+                          {onOpenOilChangeModal && (
+                            <button
+                              type="button"
+                              className="btn"
+                              style={{ 
+                                padding: '0.25rem 0.5rem', 
+                                fontSize: '0.7rem', 
+                                height: '28px',
+                                backgroundColor: oilStatus.needsOilChange ? '#dc2626' : '#2563eb',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontWeight: 700,
+                                whiteSpace: 'nowrap',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.2rem'
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenOilChangeModal(v, vCurrentKm);
+                              }}
+                              title="Registrar / Ver histórico de Troca de Óleo"
+                            >
+                              <Droplet size={13} /> {oilStatus.needsOilChange ? 'Trocar Óleo!' : 'Troca Óleo'}
+                            </button>
                           )}
 
                           <button 

@@ -57,8 +57,21 @@ export async function POST(request) {
       return NextResponse.json({ error: 'KM de saída deve ser menor ou igual ao KM de chegada.' }, { status: 400 });
     }
 
+    const departureKm = body.departureKm !== undefined && body.departureKm !== null && body.departureKm !== ''
+      ? Number(Number(body.departureKm).toFixed(2))
+      : body.departureKm;
+    const arrivalKm = body.arrivalKm !== undefined && body.arrivalKm !== null && body.arrivalKm !== ''
+      ? Number(Number(body.arrivalKm).toFixed(2))
+      : body.arrivalKm;
+    const refuelKm = body.refuelKm !== undefined && body.refuelKm !== null && body.refuelKm !== ''
+      ? Number(Number(body.refuelKm).toFixed(2))
+      : body.refuelKm;
+
     const newTrip = await addTrip({
       ...body,
+      departureKm,
+      arrivalKm,
+      refuelKm,
       createdBy: sessionUser.email
     });
     return NextResponse.json(newTrip, { status: 201 });
