@@ -53,7 +53,22 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'KM de saída deve ser menor ou igual ao KM de chegada.' }, { status: 400 });
     }
 
-    const updated = await updateTrip(id, body);
+    const departureKm = body.departureKm !== undefined && body.departureKm !== null && body.departureKm !== ''
+      ? Number(Number(body.departureKm).toFixed(2))
+      : body.departureKm;
+    const arrivalKm = body.arrivalKm !== undefined && body.arrivalKm !== null && body.arrivalKm !== ''
+      ? Number(Number(body.arrivalKm).toFixed(2))
+      : body.arrivalKm;
+    const refuelKm = body.refuelKm !== undefined && body.refuelKm !== null && body.refuelKm !== ''
+      ? Number(Number(body.refuelKm).toFixed(2))
+      : body.refuelKm;
+
+    const updated = await updateTrip(id, {
+      ...body,
+      departureKm,
+      arrivalKm,
+      refuelKm
+    });
     if (!updated) {
       return NextResponse.json({ error: 'Viagem não encontrada.' }, { status: 404 });
     }

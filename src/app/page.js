@@ -425,7 +425,10 @@ export default function Dashboard() {
     let gasolineTrips = 0;
 
     filteredTrips.forEach(t => {
-      const tripKm = Number(t.arrivalKm) - Number(t.departureKm);
+      const rawTripKm = (t.arrivalKm !== null && t.arrivalKm !== undefined && t.arrivalKm !== '')
+        ? (Number(t.arrivalKm) - Number(t.departureKm))
+        : 0;
+      const tripKm = Number(rawTripKm.toFixed(2));
       totalKm += tripKm > 0 ? tripKm : 0;
 
       if (t.refuelLiters && t.refuelKm) {
@@ -450,7 +453,7 @@ export default function Dashboard() {
     });
 
     return {
-      totalKm,
+      totalKm: Number(totalKm.toFixed(2)),
       totalTrips,
       totalLiters: refuelLitersSum,
       avgConsumption: avgConsumption.toFixed(2),
@@ -480,9 +483,16 @@ export default function Dashboard() {
     filteredTrips.forEach(t => {
       const tripMonth = t.date.slice(0, 7); // YYYY-MM
       if (monthlyKms[tripMonth]) {
-        const km = Number(t.arrivalKm) - Number(t.departureKm);
+        const rawKm = (t.arrivalKm !== null && t.arrivalKm !== undefined && t.arrivalKm !== '')
+          ? (Number(t.arrivalKm) - Number(t.departureKm))
+          : 0;
+        const km = Number(rawKm.toFixed(2));
         monthlyKms[tripMonth].km += km > 0 ? km : 0;
       }
+    });
+
+    Object.keys(monthlyKms).forEach(k => {
+      monthlyKms[k].km = Number(monthlyKms[k].km.toFixed(2));
     });
 
     return Object.values(monthlyKms);
@@ -720,7 +730,9 @@ export default function Dashboard() {
       t.departureKm,
       t.arrivalTime,
       t.arrivalKm,
-      Number(t.arrivalKm) - Number(t.departureKm),
+      (t.arrivalKm !== null && t.arrivalKm !== undefined && t.arrivalKm !== '') 
+        ? Number((Number(t.arrivalKm) - Number(t.departureKm)).toFixed(2)) 
+        : '',
       t.refuelKm || '',
       t.refuelLiters || '',
       t.fuelType || ''
@@ -1187,7 +1199,10 @@ export default function Dashboard() {
                 </tr>
               ) : (
                 currentTrips.map((t) => {
-                  const rodados = t.arrivalKm ? (Number(t.arrivalKm) - Number(t.departureKm)) : null;
+                  const rawRodados = (t.arrivalKm !== null && t.arrivalKm !== undefined && t.arrivalKm !== '')
+                    ? (Number(t.arrivalKm) - Number(t.departureKm)) 
+                    : null;
+                  const rodados = rawRodados !== null ? Number(rawRodados.toFixed(2)) : null;
                   const canEdit = !t.isPartial || (user && t.createdBy === user.email);
                   const editTooltip = !canEdit 
                     ? `Apenas o usuário que cadastrou (${t.createdBy || 'desconhecido'}) pode finalizar.` 

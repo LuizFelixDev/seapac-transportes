@@ -88,7 +88,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
           
           // Auto-fill arrival KM
           const baseKm = departureKm ? Number(departureKm) : 0;
-          setArrivalKm(baseKm + distanceKm);
+          setArrivalKm(Number((baseKm + distanceKm).toFixed(2)));
         }
       } catch (error) {
         console.error('Error fetching distance from OSRM:', error);
@@ -102,7 +102,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
   useEffect(() => {
     if (estimatedKm !== null) {
       const baseKm = departureKm ? Number(departureKm) : 0;
-      setArrivalKm(baseKm + estimatedKm);
+      setArrivalKm(Number((baseKm + estimatedKm).toFixed(2)));
     }
   }, [departureKm, estimatedKm]);
 
@@ -371,8 +371,8 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       return;
     }
 
-    const depKm = Number(departureKm);
-    const arrKm = (arrivalKm !== undefined && arrivalKm !== null && arrivalKm !== '') ? Number(arrivalKm) : null;
+    const depKm = Number(Number(departureKm).toFixed(2));
+    const arrKm = (arrivalKm !== undefined && arrivalKm !== null && arrivalKm !== '') ? Number(Number(arrivalKm).toFixed(2)) : null;
 
     if (!isPartial && arrKm !== null && depKm > arrKm) {
       setError('O KM de Chegada deve ser maior ou igual ao KM de Saída.');
@@ -401,8 +401,8 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       departureKm: depKm,
       arrivalTime: isPartial ? (arrivalTime || '') : arrivalTime,
       arrivalKm: arrKm,
-      refuelKm: hasRefuel ? Number(refuelKm) : null,
-      refuelLiters: hasRefuel ? Number(refuelLiters) : null,
+      refuelKm: hasRefuel ? Number(Number(refuelKm).toFixed(2)) : null,
+      refuelLiters: hasRefuel ? Number(Number(refuelLiters).toFixed(2)) : null,
       fuelType: hasRefuel ? fuelType : '',
       isPartial: isPartial
     };
