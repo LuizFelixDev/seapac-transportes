@@ -1,4 +1,4 @@
-const CACHE_NAME = 'seapac-pwa-v3';
+const CACHE_NAME = 'seapac-pwa-v4';
 const STATIC_ASSETS = [
   '/',
   '/login',
@@ -35,42 +35,53 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Skip caching for non-GET requests or browser extension/external origins
+  // Skip caching for non-GET requests or external origins
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) {
     return;
   }
 
-  // API Requests: Network first, fallback to cached response if offline
+  // API Requests: Network first, fallback to cached JSON response if offline
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          if (response.ok) {
+          if (response && response.ok) {
             const resClone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
           }
           return response;
         })
-        .catch(() => {
-          return caches.match(event.request);
+        .catch(async () => {
+          const cached = await caches.match(event.request);
+          if (cached) return cached;
+          return new Response(JSON.stringify({ error: 'Offline' }), { 
+            status: 503, 
+            headers: { 'Content-Type': 'application/json' } 
+          });
         })
     );
     return;
   }
 
   // HTML Navigation: Network first so online users always get latest deploy, fallback to cache offline
-  if (event.request.mode === 'navigate' || (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html'))) {
+  if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
+          if (networkResponse && networkResponse.ok) {
             const resClone = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
           }
           return networkResponse;
         })
-        .catch(() => {
-          return caches.match(event.request).then((cached) => cached || caches.match('/'));
+        .catch(async () => {
+          const cached = await caches.match(event.request);
+          if (cached) return cached;
+          const fallback = await caches.match('/');
+          if (fallback) return fallback;
+          return new Response('<!DOCTYPE html><html><body><h1>Sem conexão</h1></body></html>', {
+            headers: { 'Content-Type': 'text/html; charset=utf-8' }
+          });
         })
     );
     return;
@@ -78,20 +89,32 @@ self.addEventListener('fetch', (event) => {
 
   // Static Assets (CSS, JS chunks, images): Stale-While-Revalidate
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const resClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
-          }
-          return networkResponse;
-        })
-        .catch((err) => {
-          console.log('[SW] Fetch failed, serving cached fallback if available:', err);
-        });
+    caches.match(event.request).then(async (cachedResponse) => {
+      if (cachedResponse) {
+        // Fetch in background to update cache for next load
+        fetch(event.request)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.ok) {
+              const resClone = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
+            }
+          })
+          .catch(() => {});
+        return cachedResponse;
+      }
 
-      return cachedResponse || fetchPromise;
+      // If not in cache, fetch from network
+      try {
+        const networkResponse = await fetch(event.request);
+        if (networkResponse && networkResponse.ok) {
+          const resClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
+        }
+        return networkResponse;
+      } catch (err) {
+        console.log('[SW] Asset fetch failed:', err);
+        return new Response('', { status: 404 });
+      }
     })
   );
 });
