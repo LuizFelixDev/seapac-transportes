@@ -14,24 +14,26 @@ export default function RegisterSW() {
 
       window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-      // 2. Register Service Worker immediately if document is already loaded
+      // 2. Register Service Worker with self-healing fallback
       if ('serviceWorker' in navigator) {
         const doRegister = () => {
           navigator.serviceWorker
             .register('/sw.js')
             .then((registration) => {
-              console.log('[PWA] Service Worker registrado com sucesso no escopo:', registration.scope);
+              console.log('[PWA] Service Worker registrado no escopo:', registration.scope);
 
-              // Always check for updates when user opens normal tab
-              registration.update();
+              // Check for updates
+              registration.update().catch((err) => {
+                console.warn('[PWA] Falha ao atualizar SW, desregistrando:', err);
+                registration.unregister();
+              });
 
-              // Auto-reload when new version is ready
               registration.onupdatefound = () => {
                 const installingWorker = registration.installing;
                 if (installingWorker) {
                   installingWorker.onstatechange = () => {
                     if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                      console.log('[PWA] Nova versão do PWA ativada. Atualizando página...');
+                      console.log('[PWA] Nova versão do PWA ativada. Recarregando...');
                       window.location.reload();
                     }
                   };
@@ -40,6 +42,10 @@ export default function RegisterSW() {
             })
             .catch((error) => {
               console.error('[PWA] Erro ao registrar Service Worker:', error);
+              // Clean up broken registration
+              navigator.serviceWorker.getRegistrations().then(registrations => {
+                registrations.forEach(r => r.unregister());
+              });
             });
         };
 
