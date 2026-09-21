@@ -901,37 +901,35 @@ export default function Dashboard() {
                   })}
                 </select>
 
-                {activeV && (
+                {needsOilAlert && (
                   <button
                     type="button"
                     className="btn"
                     style={{ 
-                      padding: '0.25rem 0.55rem', 
+                      padding: '0.25rem 0.5rem', 
                       fontSize: '0.7rem', 
                       height: '28px', 
-                      backgroundColor: needsOilAlert ? '#dc2626' : '#2563eb', 
+                      backgroundColor: '#dc2626', 
                       color: '#ffffff', 
                       border: 'none',
                       fontWeight: 700,
                       whiteSpace: 'nowrap',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '0.3rem',
-                      borderRadius: '6px',
-                      cursor: 'pointer'
+                      gap: '0.2rem'
                     }}
                     onClick={() => {
                       setSelectedOilVehicle(activeV);
                       setSelectedOilVehicleKm(activeVehicleMaxKm);
                       setIsOilModalOpen(true);
                     }}
-                    title="Registrar / Ver histórico de Troca de Óleo deste veículo"
+                    title="Registrar Troca de Óleo para o veículo ativo"
                   >
-                    <Droplet size={13} /> {needsOilAlert ? 'Troca Óleo Vencida!' : 'Troca de Óleo'}
+                    🛢️ Troca Óleo!
                   </button>
                 )}
 
-                {hasObs && (
+                {!needsOilAlert && hasObs && (
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -1313,9 +1311,7 @@ export default function Dashboard() {
                   const rawRodados = (t.arrivalKm !== null && t.arrivalKm !== undefined && t.arrivalKm !== '')
                     ? (Number(t.arrivalKm) - Number(t.departureKm)) 
                     : null;
-                  const rodados = rawRodados !== null 
-                    ? Number(rawRodados.toFixed(2)).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) 
-                    : null;
+                  const rodados = rawRodados !== null ? Number(rawRodados.toFixed(2)) : null;
                   const canEdit = !t.isPartial || (user && t.createdBy === user.email);
                   const editTooltip = !canEdit 
                     ? `Apenas o usuário que cadastrou (${t.createdBy || 'desconhecido'}) pode finalizar.` 
