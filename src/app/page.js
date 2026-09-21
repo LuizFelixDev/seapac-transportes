@@ -37,6 +37,7 @@ import OfflineBanner from '@/components/OfflineBanner';
 import PWAInstallButton from '@/components/PWAInstallButton';
 import VehicleObservationsModal from '@/components/VehicleObservationsModal';
 import OilChangeModal from '@/components/OilChangeModal';
+import OilControlDashboard from '@/components/OilControlDashboard';
 import { parseVehicleObservations, checkOilChangeStatus, createOilChangeRecord } from '@/lib/vehicleUtils';
 import { 
   savePendingTrip, 
@@ -1093,29 +1094,15 @@ export default function Dashboard() {
 
       {/* CHARTS & VEHICLE CARD */}
       <div className="charts-grid">
-        <div className="section-card glass">
-          <div className="section-title">
-            <h2>Quilometragem por Mês</h2>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'hsl(var(--primary))', textTransform: 'uppercase' }}>Histórico Recente</span>
-          </div>
-          
-          <div className="chart-container">
-            {chartData.map((d, index) => {
-              const heightPct = maxChartKm > 0 ? (d.km / maxChartKm) * 80 : 5;
-              return (
-                <div key={index} className="chart-bar-wrapper">
-                  <div 
-                    className="chart-bar" 
-                    style={{ height: `${heightPct}%` }}
-                  >
-                    <div className="chart-bar-tooltip">{d.km.toLocaleString('pt-BR')} km</div>
-                  </div>
-                  <span className="chart-label">{d.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <OilControlDashboard 
+          vehicles={vehicles}
+          trips={trips}
+          onOpenOilModal={(v, km) => {
+            setSelectedOilVehicle(v);
+            setSelectedOilVehicleKm(km);
+            setIsOilModalOpen(true);
+          }}
+        />
 
         <div className="section-card glass">
           <div className="section-title">

@@ -20,7 +20,10 @@ export default function OilChangeModal({
 
   useEffect(() => {
     if (vehicle && isOpen) {
-      setKm(currentKm ? String(currentKm) : (vehicle.lastOilChangeKm ? String(vehicle.lastOilChangeKm) : '0'));
+      const initialKm = (currentKm !== undefined && currentKm !== null && currentKm > 0)
+        ? String(currentKm)
+        : (vehicle.lastOilChangeKm ? String(vehicle.lastOilChangeKm) : '0');
+      setKm(initialKm);
       setDate(new Date().toISOString().split('T')[0]);
       setNotes('');
       setError('');
