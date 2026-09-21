@@ -21,6 +21,22 @@ export default function RegisterSW() {
             .register('/sw.js')
             .then((registration) => {
               console.log('[PWA] Service Worker registrado com sucesso no escopo:', registration.scope);
+
+              // Always check for updates when user opens normal tab
+              registration.update();
+
+              // Auto-reload when new version is ready
+              registration.onupdatefound = () => {
+                const installingWorker = registration.installing;
+                if (installingWorker) {
+                  installingWorker.onstatechange = () => {
+                    if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      console.log('[PWA] Nova versão do PWA ativada. Atualizando página...');
+                      window.location.reload();
+                    }
+                  };
+                }
+              };
             })
             .catch((error) => {
               console.error('[PWA] Erro ao registrar Service Worker:', error);
@@ -32,6 +48,14 @@ export default function RegisterSW() {
         } else {
           window.addEventListener('load', doRegister);
         }
+
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
       }
 
       return () => {
@@ -42,3 +66,4 @@ export default function RegisterSW() {
 
   return null;
 }
+
