@@ -1,4 +1,4 @@
-const CACHE_NAME = 'seapac-pwa-v4';
+const CACHE_NAME = 'seapac-pwa-v5';
 const STATIC_ASSETS = [
   '/',
   '/login',
@@ -8,12 +8,41 @@ const STATIC_ASSETS = [
   '/icons/icon-512.png'
 ];
 
+/**
+ * Helper to clean redirected responses.
+ * Browsers block serving redirected responses (response.redirected === true)
+ * for navigation/fetch events where redirect mode is not "follow".
+ * Re-constructing a new Response strips the redirected flag.
+ */
+function cleanResponse(response) {
+  if (!response || !response.redirected) {
+    return response;
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers
+  });
+}
+
 // Install event: Pre-cache core static app shell assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
+    caches.open(CACHE_NAME).then(async (cache) => {
       console.log('[SW] Pre-caching app shell assets');
-      return cache.addAll(STATIC_ASSETS);
+      await Promise.all(
+        STATIC_ASSETS.map(async (url) => {
+          try {
+            const response = await fetch(url, { redirect: 'follow' });
+            if (response && response.ok) {
+              const cleaned = cleanResponse(response);
+              await cache.put(url, cleaned);
+            }
+          } catch (err) {
+            console.warn('[SW] Failed to pre-cache asset:', url, err);
+          }
+        })
+      );
     }).then(() => self.skipWaiting())
   );
 });
@@ -45,15 +74,16 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          if (response && response.ok) {
-            const resClone = response.clone();
+          const cleaned = cleanResponse(response);
+          if (cleaned && cleaned.ok) {
+            const resClone = cleaned.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
           }
-          return response;
+          return cleaned;
         })
         .catch(async () => {
           const cached = await caches.match(event.request);
-          if (cached) return cached;
+          if (cached) return cleanResponse(cached);
           return new Response(JSON.stringify({ error: 'Offline' }), { 
             status: 503, 
             headers: { 'Content-Type': 'application/json' } 
@@ -68,17 +98,18 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
-          if (networkResponse && networkResponse.ok) {
-            const resClone = networkResponse.clone();
+          const cleaned = cleanResponse(networkResponse);
+          if (cleaned && cleaned.ok) {
+            const resClone = cleaned.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
           }
-          return networkResponse;
+          return cleaned;
         })
         .catch(async () => {
           const cached = await caches.match(event.request);
-          if (cached) return cached;
+          if (cached) return cleanResponse(cached);
           const fallback = await caches.match('/');
-          if (fallback) return fallback;
+          if (fallback) return cleanResponse(fallback);
           return new Response('<!DOCTYPE html><html><body><h1>Sem conexão</h1></body></html>', {
             headers: { 'Content-Type': 'text/html; charset=utf-8' }
           });
@@ -91,26 +122,29 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then(async (cachedResponse) => {
       if (cachedResponse) {
+        const cleanedCached = cleanResponse(cachedResponse);
         // Fetch in background to update cache for next load
         fetch(event.request)
           .then((networkResponse) => {
-            if (networkResponse && networkResponse.ok) {
-              const resClone = networkResponse.clone();
+            const cleaned = cleanResponse(networkResponse);
+            if (cleaned && cleaned.ok) {
+              const resClone = cleaned.clone();
               caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
             }
           })
           .catch(() => {});
-        return cachedResponse;
+        return cleanedCached;
       }
 
       // If not in cache, fetch from network
       try {
         const networkResponse = await fetch(event.request);
-        if (networkResponse && networkResponse.ok) {
-          const resClone = networkResponse.clone();
+        const cleaned = cleanResponse(networkResponse);
+        if (cleaned && cleaned.ok) {
+          const resClone = cleaned.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
         }
-        return networkResponse;
+        return cleaned;
       } catch (err) {
         console.log('[SW] Asset fetch failed:', err);
         return new Response('', { status: 404 });
