@@ -1129,14 +1129,13 @@ table.data-table tbody tr:hover {
 }
 
 .google-btn-wrapper {
-  background: #ffffff;
+  background: transparent;
   border-radius: 12px;
   overflow: hidden;
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 2px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
   transition: all 0.2s ease;
   min-height: 44px;
 }

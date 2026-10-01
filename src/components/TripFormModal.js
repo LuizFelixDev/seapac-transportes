@@ -379,6 +379,11 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       return;
     }
 
+    if (!isPartial && arrKm !== null && (arrKm - depKm > 1500)) {
+      setError(`A quilometragem rodada da viagem (+${(arrKm - depKm).toFixed(2)} km) é excessiva. Por favor, verifique se digitou o hodômetro de chegada ou saída corretamente (sem esquecer vírgula/ponto).`);
+      return;
+    }
+
     if (hasRefuel) {
       if (!refuelKm || !refuelLiters || !fuelType) {
         setError('Preencha todas as informações de abastecimento ou desmarque a opção.');
