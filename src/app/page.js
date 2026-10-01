@@ -1105,126 +1105,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* CHARTS & VEHICLE CARD */}
-      <div className="charts-grid">
-        <OilControlDashboard 
-          vehicles={vehicles}
-          trips={trips}
-          onOpenOilModal={(v, km) => {
-            setSelectedOilVehicle(v);
-            setSelectedOilVehicleKm(km);
-            setIsOilModalOpen(true);
-          }}
-        />
-
-        <div className="section-card glass">
-          <div className="section-title">
-            <h2>Dados do Veículo Ativo</h2>
-            <Car size={18} style={{ color: 'hsl(var(--primary))' }} />
-          </div>
-          
-          {activeVehicle ? (
-            <div className="vehicle-info-box">
-              <div className="info-row">
-                <span className="info-label">Nome:</span>
-                <span className="info-value">{activeVehicle.name}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Placa:</span>
-                <span className="info-value" style={{ fontFamily: 'monospace', fontSize: '0.9rem', backgroundColor: 'hsl(var(--background))', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{activeVehicle.plate}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Instituição:</span>
-                <span className="info-value">{activeVehicle.institution}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Seguro:</span>
-                <span className="info-value" style={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>{activeVehicle.insurance}</span>
-              </div>
-              <div className="info-row" style={{ marginTop: '0.25rem', padding: '0.4rem 0.6rem', borderRadius: '6px', backgroundColor: activeVehicleOilStatus.needsOilChange ? '#fef2f2' : 'hsl(var(--muted))', border: activeVehicleOilStatus.needsOilChange ? '1px solid #fecaca' : '1px solid hsl(var(--border))' }}>
-                <span className="info-label" style={{ fontWeight: 700, color: activeVehicleOilStatus.needsOilChange ? '#dc2626' : undefined }}>
-                  🛢️ Troca de Óleo:
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span className="info-value" style={{ fontSize: '0.8rem', fontWeight: 700, color: activeVehicleOilStatus.needsOilChange ? '#dc2626' : undefined }}>
-                    {activeVehicleOilStatus.kmDriven.toLocaleString('pt-BR')}/10.000 km
-                  </span>
-                  <button
-                    type="button"
-                    className="btn"
-                    style={{
-                      padding: '0.15rem 0.4rem',
-                      fontSize: '0.65rem',
-                      height: '22px',
-                      backgroundColor: activeVehicleOilStatus.needsOilChange ? '#dc2626' : '#2563eb',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => {
-                      setSelectedOilVehicle(activeVehicle);
-                      setSelectedOilVehicleKm(activeVehicleMaxKm);
-                      setIsOilModalOpen(true);
-                    }}
-                  >
-                    Registrar
-                  </button>
-                </div>
-              </div>
-              <div style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>
-                <strong>Endereço:</strong> {activeVehicle.address}
-              </div>
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '1rem', color: 'hsl(var(--muted-foreground))' }}>Nenhum veículo selecionado.</div>
-          )}
-
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', flexWrap: 'wrap' }}>
-            <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '80px' }} onClick={() => setIsVehicleModalOpen(true)}>
-              <Settings size={14} /> Frotas
-            </button>
-            <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '95px' }} onClick={() => setIsDriverModalOpen(true)}>
-              <Users size={14} /> Condutores
-            </button>
-            {user?.role === 'adm' && (
-              <button 
-                className="btn btn-secondary" 
-                style={{ 
-                  flex: 1, 
-                  padding: '0.5rem', 
-                  minWidth: '95px', 
-                  position: 'relative',
-                  border: pendingRequestsCount > 0 ? '1.5px solid #ef476f' : '1px solid hsl(var(--border))'
-                }} 
-                onClick={() => setIsUserModalOpen(true)}
-              >
-                <Shield size={14} /> Usuários
-                {pendingRequestsCount > 0 && (
-                  <span 
-                    style={{ 
-                      position: 'absolute', 
-                      top: '-6px', 
-                      right: '-6px', 
-                      backgroundColor: '#ef476f', 
-                      color: '#fff', 
-                      fontSize: '0.6rem', 
-                      padding: '0.1rem 0.35rem', 
-                      borderRadius: '10px', 
-                      fontWeight: 800,
-                      boxShadow: '0 0 6px rgba(239,71,111,0.6)'
-                    }}
-                  >
-                    {pendingRequestsCount}
-                  </span>
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* SEARCH AND FILTERS BAR */}
       <div className="controls-bar glass">
         <div className="search-filters">
@@ -1281,7 +1161,7 @@ export default function Dashboard() {
       </div>
 
       {/* PLANILHA DATA TABLE */}
-      <div className="section-card glass" style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="section-card glass" style={{ padding: 0, overflow: 'hidden', marginBottom: '2rem' }}>
         <div className="table-container">
           <table className="data-table">
             <thead>
@@ -1455,6 +1335,126 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* CHARTS & VEHICLE CARD */}
+      <div className="charts-grid">
+        <OilControlDashboard 
+          vehicles={vehicles}
+          trips={trips}
+          onOpenOilModal={(v, km) => {
+            setSelectedOilVehicle(v);
+            setSelectedOilVehicleKm(km);
+            setIsOilModalOpen(true);
+          }}
+        />
+
+        <div className="section-card glass">
+          <div className="section-title">
+            <h2>Dados do Veículo Ativo</h2>
+            <Car size={18} style={{ color: 'hsl(var(--primary))' }} />
+          </div>
+          
+          {activeVehicle ? (
+            <div className="vehicle-info-box">
+              <div className="info-row">
+                <span className="info-label">Nome:</span>
+                <span className="info-value">{activeVehicle.name}</span>
+              </div>
+              <div className="info-row">
+                <span className="info-label">Placa:</span>
+                <span className="info-value" style={{ fontFamily: 'monospace', fontSize: '0.9rem', backgroundColor: 'hsl(var(--background))', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{activeVehicle.plate}</span>
+              </div>
+              <div className="info-row">
+                <span className="info-label">Instituição:</span>
+                <span className="info-value">{activeVehicle.institution}</span>
+              </div>
+              <div className="info-row">
+                <span className="info-label">Seguro:</span>
+                <span className="info-value" style={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>{activeVehicle.insurance}</span>
+              </div>
+              <div className="info-row" style={{ marginTop: '0.25rem', padding: '0.4rem 0.6rem', borderRadius: '6px', backgroundColor: activeVehicleOilStatus.needsOilChange ? '#fef2f2' : 'hsl(var(--muted))', border: activeVehicleOilStatus.needsOilChange ? '1px solid #fecaca' : '1px solid hsl(var(--border))' }}>
+                <span className="info-label" style={{ fontWeight: 700, color: activeVehicleOilStatus.needsOilChange ? '#dc2626' : undefined }}>
+                  🛢️ Troca de Óleo:
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span className="info-value" style={{ fontSize: '0.8rem', fontWeight: 700, color: activeVehicleOilStatus.needsOilChange ? '#dc2626' : undefined }}>
+                    {activeVehicleOilStatus.kmDriven.toLocaleString('pt-BR')}/10.000 km
+                  </span>
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{
+                      padding: '0.15rem 0.4rem',
+                      fontSize: '0.65rem',
+                      height: '22px',
+                      backgroundColor: activeVehicleOilStatus.needsOilChange ? '#dc2626' : '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => {
+                      setSelectedOilVehicle(activeVehicle);
+                      setSelectedOilVehicleKm(activeVehicleMaxKm);
+                      setIsOilModalOpen(true);
+                    }}
+                  >
+                    Registrar
+                  </button>
+                </div>
+              </div>
+              <div style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>
+                <strong>Endereço:</strong> {activeVehicle.address}
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '1rem', color: 'hsl(var(--muted-foreground))' }}>Nenhum veículo selecionado.</div>
+          )}
+
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '80px' }} onClick={() => setIsVehicleModalOpen(true)}>
+              <Settings size={14} /> Frotas
+            </button>
+            <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '95px' }} onClick={() => setIsDriverModalOpen(true)}>
+              <Users size={14} /> Condutores
+            </button>
+            {user?.role === 'adm' && (
+              <button 
+                className="btn btn-secondary" 
+                style={{ 
+                  flex: 1, 
+                  padding: '0.5rem', 
+                  minWidth: '95px', 
+                  position: 'relative',
+                  border: pendingRequestsCount > 0 ? '1.5px solid #ef476f' : '1px solid hsl(var(--border))'
+                }} 
+                onClick={() => setIsUserModalOpen(true)}
+              >
+                <Shield size={14} /> Usuários
+                {pendingRequestsCount > 0 && (
+                  <span 
+                    style={{ 
+                      position: 'absolute', 
+                      top: '-6px', 
+                      right: '-6px', 
+                      backgroundColor: '#ef476f', 
+                      color: '#fff', 
+                      fontSize: '0.6rem', 
+                      padding: '0.1rem 0.35rem', 
+                      borderRadius: '10px', 
+                      fontWeight: 800,
+                      boxShadow: '0 0 6px rgba(239,71,111,0.6)'
+                    }}
+                  >
+                    {pendingRequestsCount}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* TRIP FORM MODAL */}
