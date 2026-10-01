@@ -17,18 +17,18 @@ export default function OilControlDashboard({
 
     const list = vehicles.map(vehicle => {
       // Find max KM recorded across all trips for this vehicle
-      const vehicleTrips = Array.isArray(trips) ? trips.filter(t => t.vehicleId === vehicle.id) : [];
+      const vehicleTrips = Array.isArray(trips) ? trips.filter(t => String(t.vehicleId) === String(vehicle.id)) : [];
       let maxKm = Number(vehicle.lastOilChangeKm) || 0;
       vehicleTrips.forEach(t => {
         if (t.arrivalKm && Number(t.arrivalKm) > maxKm) maxKm = Number(t.arrivalKm);
         if (t.departureKm && Number(t.departureKm) > maxKm) maxKm = Number(t.departureKm);
       });
 
-      const oilStatus = checkOilChangeStatus(vehicle, maxKm);
+      const oilStatus = checkOilChangeStatus(vehicle, trips);
 
       return {
         vehicle,
-        maxKm,
+        maxKm: Math.max(maxKm, oilStatus.currentKm),
         ...oilStatus
       };
     });

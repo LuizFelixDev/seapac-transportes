@@ -134,14 +134,14 @@ export default function VehicleModal({
                   const hasObs = obsList.length > 0;
 
                   // Compute vehicle's latest max KM from trips
-                  const vehicleTrips = trips.filter(t => t.vehicleId === v.id);
+                  const vehicleTrips = trips.filter(t => String(t.vehicleId) === String(v.id));
                   let vCurrentKm = Number(v.lastOilChangeKm) || 0;
                   vehicleTrips.forEach(t => {
                     if (t.arrivalKm && Number(t.arrivalKm) > vCurrentKm) vCurrentKm = Number(t.arrivalKm);
                     if (t.departureKm && Number(t.departureKm) > vCurrentKm) vCurrentKm = Number(t.departureKm);
                   });
 
-                  const oilStatus = checkOilChangeStatus(v, vCurrentKm);
+                  const oilStatus = checkOilChangeStatus(v, trips);
 
                   return (
                     <div 

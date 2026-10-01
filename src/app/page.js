@@ -175,21 +175,36 @@ export default function Dashboard() {
           try {
             const parsedUser = JSON.parse(cachedUserStr);
             setUser(parsedUser);
-            setInitialChecking(false);
-          } catch (e) {}
+          } catch (e) {
+            localStorage.removeItem('seapac-user-session');
+          }
         }
 
         if (typeof window !== 'undefined' && !navigator.onLine) {
-          fetchInitialData();
-          setInitialChecking(false);
+          if (cachedUserStr) {
+            fetchInitialData();
+            setInitialChecking(false);
+          } else {
+            setInitialChecking(false);
+            router.replace('/login');
+          }
           return;
         }
 
         const controller = new AbortController();
-        const sessionTimeout = setTimeout(() => controller.abort(), 2500);
+        const sessionTimeout = setTimeout(() => controller.abort(), 8000);
 
         const res = await fetch('/api/auth/session', { signal: controller.signal });
         clearTimeout(sessionTimeout);
+
+        if (!res.ok && res.status === 401) {
+          localStorage.removeItem('seapac-user-session');
+          setUser(null);
+          setInitialChecking(false);
+          router.replace('/login');
+          return;
+        }
+
         const data = await res.json();
 
         if (data && data.user) {
@@ -204,14 +219,12 @@ export default function Dashboard() {
           }
 
           syncOfflineTrips();
-        } else if (!cachedUserStr) {
-          setInitialChecking(false);
-          setTimeout(() => {
-            if (typeof window !== 'undefined') window.location.replace('/login');
-          }, 50);
         } else {
+          // Server returned no user -> invalidate stale session and redirect to login
+          localStorage.removeItem('seapac-user-session');
+          setUser(null);
           setInitialChecking(false);
-          fetchInitialData();
+          router.replace('/login');
         }
       } catch (error) {
         console.error('Session check error:', error);
@@ -222,16 +235,15 @@ export default function Dashboard() {
             setInitialChecking(false);
             fetchInitialData();
           } catch (e) {
+            localStorage.removeItem('seapac-user-session');
+            setUser(null);
             setInitialChecking(false);
-            setTimeout(() => {
-              if (typeof window !== 'undefined') window.location.replace('/login');
-            }, 50);
+            router.replace('/login');
           }
         } else {
+          setUser(null);
           setInitialChecking(false);
-          setTimeout(() => {
-            if (typeof window !== 'undefined') window.location.replace('/login');
-          }, 50);
+          router.replace('/login');
         }
       }
     };
@@ -309,7 +321,7 @@ export default function Dashboard() {
       if (typeof window !== 'undefined' && navigator.onLine) {
         try {
           const controller = new AbortController();
-          const fetchTimeout = setTimeout(() => controller.abort(), 3500);
+          const fetchTimeout = setTimeout(() => controller.abort(), 8000);
 
           const [vehiclesRes, driversRes, tripsRes] = await Promise.all([
             fetch('/api/vehicles', { signal: controller.signal }),
@@ -317,6 +329,13 @@ export default function Dashboard() {
             fetch('/api/trips', { signal: controller.signal })
           ]);
           clearTimeout(fetchTimeout);
+
+          if (vehiclesRes.status === 401 || driversRes.status === 401 || tripsRes.status === 401) {
+            localStorage.removeItem('seapac-user-session');
+            setUser(null);
+            router.replace('/login');
+            return;
+          }
 
           if (vehiclesRes.ok && driversRes.ok && tripsRes.ok) {
             const vehiclesData = await vehiclesRes.json();
@@ -384,13 +403,13 @@ export default function Dashboard() {
   // Get active vehicle info
   const activeVehicle = useMemo(() => {
     if (!Array.isArray(vehicles)) return null;
-    return vehicles.find(v => v.id === activeVehicleId) || null;
+    return vehicles.find(v => String(v.id) === String(activeVehicleId)) || null;
   }, [vehicles, activeVehicleId]);
 
   // Get most recent trip recorded for the active vehicle
   const lastTrip = useMemo(() => {
     if (!Array.isArray(trips) || trips.length === 0) return null;
-    const vehicleTrips = trips.filter(t => t.vehicleId === activeVehicleId);
+    const vehicleTrips = trips.filter(t => String(t.vehicleId) === String(activeVehicleId));
     if (vehicleTrips.length === 0) return null;
     return [...vehicleTrips].sort((a, b) => {
       const dateDiff = new Date(b.date) - new Date(a.date);
@@ -402,7 +421,7 @@ export default function Dashboard() {
   // Compute current max KM for active vehicle
   const activeVehicleMaxKm = useMemo(() => {
     if (!activeVehicleId || !Array.isArray(trips)) return 0;
-    const vehicleTrips = trips.filter(t => t.vehicleId === activeVehicleId);
+    const vehicleTrips = trips.filter(t => String(t.vehicleId) === String(activeVehicleId));
     let maxKm = Number(activeVehicle?.lastOilChangeKm) || 0;
     vehicleTrips.forEach(t => {
       if (t.arrivalKm && Number(t.arrivalKm) > maxKm) maxKm = Number(t.arrivalKm);
@@ -413,15 +432,15 @@ export default function Dashboard() {
 
   // Oil change status for active vehicle
   const activeVehicleOilStatus = useMemo(() => {
-    return checkOilChangeStatus(activeVehicle, activeVehicleMaxKm);
-  }, [activeVehicle, activeVehicleMaxKm]);
+    return checkOilChangeStatus(activeVehicle, trips);
+  }, [activeVehicle, trips]);
 
   // Filtered trips for calculation and display
   const filteredTrips = useMemo(() => {
     if (!Array.isArray(trips)) return [];
     return trips.filter(trip => {
       // Vehicle Filter
-      if (trip.vehicleId !== activeVehicleId) return false;
+      if (String(trip.vehicleId) !== String(activeVehicleId)) return false;
 
       // Text Search Filter (Driver, Route)
       const textMatch = searchQuery === '' || 
@@ -885,13 +904,7 @@ export default function Dashboard() {
                 >
                   {vehicles.map(v => {
                     const count = parseVehicleObservations(v.obs).length;
-                    const vTrips = trips.filter(t => t.vehicleId === v.id);
-                    let vKm = Number(v.lastOilChangeKm) || 0;
-                    vTrips.forEach(t => {
-                      if (t.arrivalKm && Number(t.arrivalKm) > vKm) vKm = Number(t.arrivalKm);
-                      if (t.departureKm && Number(t.departureKm) > vKm) vKm = Number(t.departureKm);
-                    });
-                    const vOil = checkOilChangeStatus(v, vKm);
+                    const vOil = checkOilChangeStatus(v, trips);
 
                     return (
                       <option key={v.id} value={v.id}>

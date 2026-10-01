@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Car, Mail, User, ShieldAlert, Loader2 } from 'lucide-react';
+import { Car, Mail, User, ShieldAlert, Loader2, LogIn, ChevronDown } from 'lucide-react';
 
 export default function Login() {
   const router = useRouter();
@@ -10,8 +10,9 @@ export default function Login() {
   const [error, setError] = useState('');
   const [hasClientId, setHasClientId] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
-  
-  // States for the simulated Google Sign-in form (fallback)
+  const [showDirectForm, setShowDirectForm] = useState(false);
+
+  // States for the direct Google / email login form
   const [mockName, setMockName] = useState('');
   const [mockEmail, setMockEmail] = useState('');
 
@@ -22,10 +23,20 @@ export default function Login() {
     setHasClientId(!!clientId);
   }, [clientId]);
 
-  // Load Google Identity Services SDK
+  // Load Google Identity Services SDK safely
   useEffect(() => {
     if (clientId) {
+      if (typeof window !== 'undefined' && window.google) {
+        setScriptLoaded(true);
+        return;
+      }
+      const existingScript = document.getElementById('google-gsi-script');
+      if (existingScript) {
+        existingScript.addEventListener('load', () => setScriptLoaded(true));
+        return;
+      }
       const script = document.createElement('script');
+      script.id = 'google-gsi-script';
       script.src = 'https://accounts.google.com/gsi/client';
       script.async = true;
       script.defer = true;
@@ -35,10 +46,6 @@ export default function Login() {
       };
 
       document.body.appendChild(script);
-
-      return () => {
-        document.body.removeChild(script);
-      };
     }
   }, [clientId]);
 
@@ -55,12 +62,13 @@ export default function Login() {
 
         const container = document.getElementById('google-btn-container');
         if (container) {
+          container.innerHTML = '';
           window.google.accounts.id.renderButton(
             container,
             {
               theme: 'outline',
               size: 'large',
-              width: 350,
+              width: 320,
               text: 'signin_with',
               shape: 'rectangular',
             }
@@ -68,20 +76,30 @@ export default function Login() {
         }
 
         window.google.accounts.id.prompt();
+
+        // Check after 1.5s if Google button iframe rendered. If not (e.g. unallowed origin on localhost), reveal direct login form automatically
+        const timer = setTimeout(() => {
+          if (container && !container.querySelector('iframe')) {
+            setShowDirectForm(true);
+          }
+        }, 1500);
+
+        return () => clearTimeout(timer);
       } catch (err) {
-        console.error('Error initializing Google One Tap:', err);
+        console.error('Error initializing Google Sign-In:', err);
+        setShowDirectForm(true);
       }
     }
   }, [hasClientId, scriptLoaded, clientId]);
 
-  // Handle Google authenticaton token callback
+  // Handle Google authentication token callback
   const handleGoogleLogin = async (response) => {
     setLoading(true);
     setError('');
     try {
       const credential = response.credential;
       
-      // Decode the profile information from the JWT credential payload
+      // Decode profile info
       const base64Url = credential.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
       const jsonPayload = decodeURIComponent(
@@ -94,7 +112,6 @@ export default function Login() {
       const payload = JSON.parse(jsonPayload);
       const { name, email, picture } = payload;
 
-      // Submit session details to backend cookie handler
       const res = await fetch('/api/auth/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -102,6 +119,10 @@ export default function Login() {
       });
 
       if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          localStorage.setItem('seapac-user-session', JSON.stringify(data.user));
+        }
         router.replace('/');
       } else {
         const errData = await res.json();
@@ -115,11 +136,11 @@ export default function Login() {
     }
   };
 
-  // Handle Simulated/Mock Google Login flow
+  // Handle Direct / Manual Login flow
   const handleMockLogin = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (!mockName.trim() || !mockEmail.trim()) {
-      setError('Por favor, preencha o nome e email.');
+      setError('Por favor, preencha o nome e e-mail.');
       return;
     }
 
@@ -138,17 +159,26 @@ export default function Login() {
       });
 
       if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          localStorage.setItem('seapac-user-session', JSON.stringify(data.user));
+        }
         router.replace('/');
       } else {
         const errData = await res.json();
-        setError(errData.error || 'Erro ao realizar login de demonstração.');
+        setError(errData.error || 'Erro ao realizar login.');
       }
     } catch (err) {
-      console.error('Mock login request error:', err);
+      console.error('Login request error:', err);
       setError('Falha ao estabelecer conexão de login.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const setQuickUser = (name, email) => {
+    setMockName(name);
+    setMockEmail(email);
   };
 
   return (
@@ -169,36 +199,32 @@ export default function Login() {
         {/* ERROR MESSAGE DISPLAY */}
         {error && <div className="login-error">{error}</div>}
 
-        {/* GOOGLE SIGN IN BUTTON */}
-        {hasClientId ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* GOOGLE SIGN IN CONTAINER */}
+        {hasClientId && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '0.5rem' }}>
             <div className="google-btn-wrapper">
-              <div id="google-btn-container" style={{ width: '100%' }}></div>
+              <div id="google-btn-container" style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                {!scriptLoaded && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>
+                    <Loader2 size={16} style={{ animation: 'spin 1s infinite linear' }} />
+                    <span>Carregando login do Google...</span>
+                  </div>
+                )}
+              </div>
             </div>
-            
-            {/* Loading Indicator */}
+
             {loading && (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>
                 <Loader2 size={16} style={{ animation: 'spin 1s infinite linear' }} />
                 <span>Autenticando...</span>
               </div>
             )}
           </div>
-        ) : (
-          /* FALLBACK SIMULATION IN DEV ENVIRONMENT */
-          <div>
-            <div className="demo-alert">
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                <ShieldAlert size={18} style={{ flexShrink: 0 }} />
-                <div>
-                  <strong>Modo de Demonstração Ativo</strong>
-                  <div style={{ fontSize: '0.75rem', marginTop: '0.2rem', color: 'rgba(255,255,255,0.8)' }}>
-                    Para usar login real do Google, defina a variável <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> no arquivo <code>.env.local</code>.
-                  </div>
-                </div>
-              </div>
-            </div>
+        )}
 
+        {/* TOGGLE DIRECT LOGIN / FORM */}
+        {(showDirectForm || !hasClientId) ? (
+          <div>
             <form onSubmit={handleMockLogin}>
               <div className="login-form-group">
                 <label>Nome Completo</label>
@@ -207,7 +233,7 @@ export default function Login() {
                   <input
                     type="text"
                     className="login-input"
-                    placeholder="Ex: Francisco Silva"
+                    placeholder="Ex: Luiz Henrique"
                     value={mockName}
                     onChange={(e) => setMockName(e.target.value)}
                     style={{ paddingLeft: '36px' }}
@@ -218,13 +244,13 @@ export default function Login() {
               </div>
 
               <div className="login-form-group">
-                <label>E-mail do Google</label>
+                <label>E-mail Autorizado</label>
                 <div style={{ position: 'relative' }}>
                   <Mail size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: 'rgba(255,255,255,0.5)' }} />
                   <input
                     type="email"
                     className="login-input"
-                    placeholder="Ex: motorista@seapac.org"
+                    placeholder="Ex: luizhenriquefelix138@gmail.com"
                     value={mockEmail}
                     onChange={(e) => setMockEmail(e.target.value)}
                     style={{ paddingLeft: '36px' }}
@@ -234,6 +260,27 @@ export default function Login() {
                 </div>
               </div>
 
+              {/* Quick Select Preset Email */}
+              <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setQuickUser('Luiz Henrique', 'luizhenriquefelix138@gmail.com')}
+                  style={{
+                    background: 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#fff',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    width: '100%',
+                    textAlign: 'center'
+                  }}
+                >
+                  ⚡ Preencher com e-mail de teste (Luiz Henrique ADM)
+                </button>
+              </div>
+
               <button type="submit" className="login-btn-submit" disabled={loading}>
                 {loading ? (
                   <>
@@ -241,11 +288,39 @@ export default function Login() {
                     <span>Entrando...</span>
                   </>
                 ) : (
-                  <span>Simular Entrada com Google</span>
+                  <>
+                    <LogIn size={18} />
+                    <span>Entrar no Sistema</span>
+                  </>
                 )}
               </button>
             </form>
           </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowDirectForm(true)}
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              borderRadius: '8px',
+              color: 'rgba(255,255,255,0.9)',
+              fontSize: '0.85rem',
+              fontWeight: 500,
+              padding: '0.65rem 1rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              marginTop: '0.5rem',
+              width: '100%',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <span>Entrar diretamente com Nome e E-mail</span>
+            <ChevronDown size={16} />
+          </button>
         )}
 
         <div className="divider-container">
@@ -261,3 +336,4 @@ export default function Login() {
     </div>
   );
 }
+

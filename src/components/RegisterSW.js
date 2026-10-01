@@ -5,6 +5,16 @@ import { useEffect } from 'react';
 export default function RegisterSW() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Disable Service Worker in development mode to avoid caching issues during local testing
+      if (process.env.NODE_ENV === 'development') {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            registrations.forEach((r) => r.unregister());
+          });
+        }
+        return;
+      }
+
       // 1. Capture beforeinstallprompt event globally before any component state loss
       const handleBeforeInstallPrompt = (e) => {
         e.preventDefault();
