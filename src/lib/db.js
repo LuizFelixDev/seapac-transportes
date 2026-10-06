@@ -84,6 +84,7 @@ async function ensureSchema() {
         "departureKm" NUMERIC(10, 2) NOT NULL,
         "arrivalTime" TEXT,
         "arrivalKm" NUMERIC(10, 2),
+        "km_rodados" NUMERIC(10, 2) DEFAULT 0,
         "refuelKm" NUMERIC(10, 2),
         "refuelLiters" NUMERIC(10, 2),
         "fuelType" TEXT,
@@ -97,9 +98,17 @@ async function ensureSchema() {
       ALTER TABLE trips 
       ADD COLUMN IF NOT EXISTS "isPartial" BOOLEAN DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS "createdBy" TEXT,
+      ADD COLUMN IF NOT EXISTS "km_rodados" NUMERIC(10, 2) DEFAULT 0,
       ALTER COLUMN "routeTo" DROP NOT NULL,
       ALTER COLUMN "arrivalTime" DROP NOT NULL,
       ALTER COLUMN "arrivalKm" DROP NOT NULL;
+    `;
+
+    // Atualiza viagens existentes no banco calculando km_rodados se estiver zerado/nulo
+    await sql`
+      UPDATE trips 
+      SET "km_rodados" = ("arrivalKm" - "departureKm")
+      WHERE "arrivalKm" IS NOT NULL AND "departureKm" IS NOT NULL AND ("km_rodados" IS NULL OR "km_rodados" = 0);
     `;
 
     // Remover coluna signature caso ainda exista na tabela
@@ -172,11 +181,11 @@ async function ensureSchema() {
     const tripsCount = await sql`SELECT COUNT(*)::int FROM trips`;
     if (tripsCount[0].count === 0) {
       await sql`
-        INSERT INTO trips (id, "vehicleId", date, driver, "routeFrom", "routeTo", "departureTime", "departureKm", "arrivalTime", "arrivalKm", "refuelKm", "refuelLiters", "fuelType", "isPartial", "createdBy")
+        INSERT INTO trips (id, "vehicleId", date, driver, "routeFrom", "routeTo", "departureTime", "departureKm", "arrivalTime", "arrivalKm", "km_rodados", "refuelKm", "refuelLiters", "fuelType", "isPartial", "createdBy")
         VALUES 
-          ('1', '1', '2026-08-01', 'Francisco Silva', 'Natal', 'Mossoró', '07:00', 125400, '11:30', 125680, 125550, 35.5, 'G', false, 'admin@seapac.org'),
-          ('2', '1', '2026-08-02', 'Maria Sousa', 'Mossoró', 'Caicó', '13:00', 125680, '16:45', 125850, null, null, '', false, 'admin@seapac.org'),
-          ('3', '1', '2026-08-03', 'João Medeiros', 'Caicó', 'Natal', '08:00', 125850, '12:15', 126130, 126000, 40.2, 'A', false, 'admin@seapac.org');
+          ('1', '1', '2026-08-01', 'Francisco Silva', 'Natal', 'Mossoró', '07:00', 125400, '11:30', 125680, 280, 125550, 35.5, 'G', false, 'admin@seapac.org'),
+          ('2', '1', '2026-08-02', 'Maria Sousa', 'Mossoró', 'Caicó', '13:00', 125680, '16:45', 125850, 170, null, null, '', false, 'admin@seapac.org'),
+          ('3', '1', '2026-08-03', 'João Medeiros', 'Caicó', 'Natal', '08:00', 125850, '12:15', 126130, 280, 126000, 40.2, 'A', false, 'admin@seapac.org');
       `;
     }
 
@@ -199,7 +208,13 @@ export async function getTrips() {
   const rows = await db`SELECT * FROM trips`;
   return rows.map(t => ({
     ...t,
-    refuelLiters: t.refuelLiters ? Number(t.refuelLiters) : null
+    departureKm: Number(t.departureKm),
+    arrivalKm: t.arrivalKm ? Number(t.arrivalKm) : null,
+    km_rodados: t.km_rodados !== null && t.km_rodados !== undefined 
+      ? Number(t.km_rodados) 
+      : ((t.arrivalKm && t.departureKm) ? Number((Number(t.arrivalKm) - Number(t.departureKm)).toFixed(2)) : 0),
+    refuelLiters: t.refuelLiters ? Number(t.refuelLiters) : null,
+    refuelKm: t.refuelKm ? Number(t.refuelKm) : null
   }));
 }
 
@@ -212,7 +227,13 @@ export async function getTripById(id) {
     const t = rows[0];
     return {
       ...t,
-      refuelLiters: t.refuelLiters ? Number(t.refuelLiters) : null
+      departureKm: Number(t.departureKm),
+      arrivalKm: t.arrivalKm ? Number(t.arrivalKm) : null,
+      km_rodados: t.km_rodados !== null && t.km_rodados !== undefined 
+        ? Number(t.km_rodados) 
+        : ((t.arrivalKm && t.departureKm) ? Number((Number(t.arrivalKm) - Number(t.departureKm)).toFixed(2)) : 0),
+      refuelLiters: t.refuelLiters ? Number(t.refuelLiters) : null,
+      refuelKm: t.refuelKm ? Number(t.refuelKm) : null
     };
   }
   return null;
@@ -225,6 +246,9 @@ export async function addTrip(trip) {
   
   const departureKm = Number(trip.departureKm);
   const arrivalKm = (trip.arrivalKm !== null && trip.arrivalKm !== undefined && trip.arrivalKm !== '') ? Number(trip.arrivalKm) : null;
+  const km_rodados = (arrivalKm !== null && departureKm !== null && arrivalKm >= departureKm)
+    ? Number((arrivalKm - departureKm).toFixed(2))
+    : (trip.km_rodados ? Number(trip.km_rodados) : 0);
   const refuelKm = trip.refuelKm ? Number(trip.refuelKm) : null;
   const refuelLiters = trip.refuelLiters ? Number(trip.refuelLiters) : null;
   const isPartial = !!trip.isPartial;
@@ -233,12 +257,12 @@ export async function addTrip(trip) {
   await db`
     INSERT INTO trips (
       id, "vehicleId", date, driver, "routeFrom", "routeTo", 
-      "departureTime", "departureKm", "arrivalTime", "arrivalKm", 
+      "departureTime", "departureKm", "arrivalTime", "arrivalKm", "km_rodados",
       "refuelKm", "refuelLiters", "fuelType", "isPartial", "createdBy"
     )
     VALUES (
       ${id}, ${trip.vehicleId}, ${trip.date}, ${trip.driver}, ${trip.routeFrom}, ${trip.routeTo || null},
-      ${trip.departureTime}, ${departureKm}, ${trip.arrivalTime || null}, ${arrivalKm},
+      ${trip.departureTime}, ${departureKm}, ${trip.arrivalTime || null}, ${arrivalKm}, ${km_rodados},
       ${refuelKm}, ${refuelLiters}, ${trip.fuelType || ''}, ${isPartial}, ${createdBy}
     )
   `;
@@ -248,6 +272,7 @@ export async function addTrip(trip) {
     id,
     departureKm,
     arrivalKm,
+    km_rodados,
     refuelKm,
     refuelLiters,
     isPartial,
@@ -261,6 +286,9 @@ export async function updateTrip(id, updatedTrip) {
   
   const departureKm = Number(updatedTrip.departureKm);
   const arrivalKm = (updatedTrip.arrivalKm !== null && updatedTrip.arrivalKm !== undefined && updatedTrip.arrivalKm !== '') ? Number(updatedTrip.arrivalKm) : null;
+  const km_rodados = (arrivalKm !== null && departureKm !== null && arrivalKm >= departureKm)
+    ? Number((arrivalKm - departureKm).toFixed(2))
+    : (updatedTrip.km_rodados ? Number(updatedTrip.km_rodados) : 0);
   const refuelKm = updatedTrip.refuelKm ? Number(updatedTrip.refuelKm) : null;
   const refuelLiters = updatedTrip.refuelLiters ? Number(updatedTrip.refuelLiters) : null;
   const isPartial = !!updatedTrip.isPartial;
@@ -276,6 +304,7 @@ export async function updateTrip(id, updatedTrip) {
         "departureKm" = ${departureKm},
         "arrivalTime" = ${updatedTrip.arrivalTime || null},
         "arrivalKm" = ${arrivalKm},
+        "km_rodados" = ${km_rodados},
         "refuelKm" = ${refuelKm},
         "refuelLiters" = ${refuelLiters},
         "fuelType" = ${updatedTrip.fuelType || ''},
@@ -288,7 +317,11 @@ export async function updateTrip(id, updatedTrip) {
     const t = result[0];
     return {
       ...t,
-      refuelLiters: t.refuelLiters ? Number(t.refuelLiters) : null
+      departureKm: Number(t.departureKm),
+      arrivalKm: t.arrivalKm ? Number(t.arrivalKm) : null,
+      km_rodados: Number(t.km_rodados),
+      refuelLiters: t.refuelLiters ? Number(t.refuelLiters) : null,
+      refuelKm: t.refuelKm ? Number(t.refuelKm) : null
     };
   }
   return null;

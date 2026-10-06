@@ -469,9 +469,11 @@ export default function Dashboard() {
     let gasolineTrips = 0;
 
     filteredTrips.forEach(t => {
-      const rawTripKm = (t.arrivalKm !== null && t.arrivalKm !== undefined && t.arrivalKm !== '')
-        ? (Number(t.arrivalKm) - Number(t.departureKm))
-        : 0;
+      const rawTripKm = (t.km_rodados !== undefined && t.km_rodados !== null)
+        ? Number(t.km_rodados)
+        : ((t.arrivalKm !== null && t.arrivalKm !== undefined && t.arrivalKm !== '')
+            ? (Number(t.arrivalKm) - Number(t.departureKm))
+            : 0);
       const tripKm = Number(rawTripKm.toFixed(2));
       totalKm += tripKm > 0 ? tripKm : 0;
 
@@ -527,9 +529,11 @@ export default function Dashboard() {
     filteredTrips.forEach(t => {
       const tripMonth = t.date.slice(0, 7); // YYYY-MM
       if (monthlyKms[tripMonth]) {
-        const rawKm = (t.arrivalKm !== null && t.arrivalKm !== undefined && t.arrivalKm !== '')
-          ? (Number(t.arrivalKm) - Number(t.departureKm))
-          : 0;
+        const rawKm = (t.km_rodados !== undefined && t.km_rodados !== null)
+          ? Number(t.km_rodados)
+          : ((t.arrivalKm !== null && t.arrivalKm !== undefined && t.arrivalKm !== '')
+              ? (Number(t.arrivalKm) - Number(t.departureKm))
+              : 0);
         const km = Number(rawKm.toFixed(2));
         monthlyKms[tripMonth].km += km > 0 ? km : 0;
       }
@@ -1188,9 +1192,11 @@ export default function Dashboard() {
                 </tr>
               ) : (
                 currentTrips.map((t) => {
-                  const rawRodados = (t.arrivalKm !== null && t.arrivalKm !== undefined && t.arrivalKm !== '')
-                    ? (Number(t.arrivalKm) - Number(t.departureKm)) 
-                    : null;
+                  const rawRodados = (t.km_rodados !== undefined && t.km_rodados !== null)
+                    ? Number(t.km_rodados)
+                    : ((t.arrivalKm !== null && t.arrivalKm !== undefined && t.arrivalKm !== '')
+                        ? (Number(t.arrivalKm) - Number(t.departureKm)) 
+                        : null);
                   const rodados = rawRodados !== null ? Number(rawRodados.toFixed(2)) : null;
                   const canEdit = !t.isPartial || (user && t.createdBy === user.email);
                   const editTooltip = !canEdit 
@@ -1466,6 +1472,7 @@ export default function Dashboard() {
         lastTrip={lastTrip}
         drivers={drivers}
         vehicles={vehicles}
+        trips={trips}
         onAddVehicle={handleCreateVehicle}
         onUpdateVehicle={handleUpdateVehicle}
         onOpenVehicleObsModal={(v) => {

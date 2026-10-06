@@ -63,6 +63,9 @@ export async function POST(request) {
     const arrivalKm = body.arrivalKm !== undefined && body.arrivalKm !== null && body.arrivalKm !== ''
       ? Number(Number(body.arrivalKm).toFixed(2))
       : body.arrivalKm;
+    const km_rodados = (!isPartial && arrivalKm !== null && arrivalKm !== undefined && departureKm !== null && departureKm !== undefined && arrivalKm >= departureKm)
+      ? Number((arrivalKm - departureKm).toFixed(2))
+      : 0;
     const refuelKm = body.refuelKm !== undefined && body.refuelKm !== null && body.refuelKm !== ''
       ? Number(Number(body.refuelKm).toFixed(2))
       : body.refuelKm;
@@ -71,6 +74,7 @@ export async function POST(request) {
       ...body,
       departureKm,
       arrivalKm,
+      km_rodados,
       refuelKm,
       createdBy: sessionUser.email
     });
