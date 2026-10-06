@@ -90,7 +90,7 @@ function normalizeDateStr(dStr) {
 }
 
 /**
- * Soma a coluna "RODADOS" (arrivalKm - departureKm) de todas as viagens do veículo
+ * Soma a coluna "km_rodados" (quilometragem final - inicial) de todas as viagens do veículo
  * realizadas a partir da última troca de óleo registrada.
  */
 export function calculateVehicleOilKm(vehicle, trips = []) {
@@ -100,42 +100,48 @@ export function calculateVehicleOilKm(vehicle, trips = []) {
   if (vehicleTrips.length === 0) return 0;
 
   const history = parseOilChangeHistory(vehicle.oilChangeHistory);
-  let lastOilDate = null;
   let lastOilKm = Number(vehicle.lastOilChangeKm) || 0;
 
   if (history.length > 0) {
     const newest = history[0];
-    if (newest.date) lastOilDate = newest.date;
-    if (newest.km) lastOilKm = Number(newest.km);
+    if (newest && newest.km !== undefined && newest.km !== null) {
+      lastOilKm = Number(newest.km);
+    }
   }
 
   let totalDriven = 0;
 
   vehicleTrips.forEach(t => {
-    const dep = Number(t.departureKm);
-    const arr = Number(t.arrivalKm);
-
-    if (!isNaN(arr) && !isNaN(dep) && arr > dep) {
-      let isTripAfterOilChange = true;
-
-      if (lastOilDate && t.date) {
-        const tripDateNorm = normalizeDateStr(t.date);
-        const oilDateNorm = normalizeDateStr(lastOilDate);
-        if (tripDateNorm < oilDateNorm) {
-          isTripAfterOilChange = false;
-        }
+    // Obter km_rodados do banco ou calcular (arrivalKm - departureKm)
+    let kmRodados = 0;
+    if (t.km_rodados !== undefined && t.km_rodados !== null && !isNaN(Number(t.km_rodados)) && Number(t.km_rodados) > 0) {
+      kmRodados = Number(t.km_rodados);
+    } else {
+      const arr = Number(t.arrivalKm);
+      const dep = Number(t.departureKm);
+      if (!isNaN(arr) && !isNaN(dep) && arr > dep) {
+        kmRodados = arr - dep;
       }
+    }
 
-      if (lastOilKm > 0 && arr <= lastOilKm) {
-        isTripAfterOilChange = false;
-      }
+    if (kmRodados > 0) {
+      const dep = Number(t.departureKm);
+      const arr = Number(t.arrivalKm);
 
-      if (isTripAfterOilChange) {
-        const effectiveDep = lastOilKm > 0 ? Math.max(dep, lastOilKm) : dep;
-        const diff = arr - effectiveDep;
-        // Proteção contra erro de digitação (ex: viagem individual discrepante > 1.500 km)
-        if (diff > 0 && diff <= 1500) {
-          totalDriven += diff;
+      // Se o veículo não possui última troca registrada (lastOilKm = 0), soma todas as viagens do veículo
+      if (!lastOilKm || lastOilKm === 0) {
+        totalDriven += kmRodados;
+      } else {
+        // Se a viagem é posterior ao marco da troca de óleo
+        if (arr && arr > lastOilKm) {
+          if (!isNaN(dep) && dep >= lastOilKm) {
+            // Viagem inteiramente realizada após a troca de óleo
+            totalDriven += kmRodados;
+          } else {
+            // Viagem iniciada antes do marco de troca e finalizada depois
+            const diff = arr - lastOilKm;
+            if (diff > 0) totalDriven += diff;
+          }
         }
       }
     }

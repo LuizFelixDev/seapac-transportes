@@ -3,7 +3,7 @@ import { X, RefreshCw, Loader2, AlertTriangle, Eye, Plus } from 'lucide-react';
 import MapPickerModal from './MapPickerModal';
 import { parseVehicleObservations, addObservationToVehicle } from '@/lib/vehicleUtils';
 
-export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTrip, drivers, vehicles = [], onAddVehicle, onUpdateVehicle, onOpenVehicleObsModal, activeVehicleId, currentUser }) {
+export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTrip, drivers, vehicles = [], trips = [], onAddVehicle, onUpdateVehicle, onOpenVehicleObsModal, activeVehicleId, currentUser }) {
   const [date, setDate] = useState('');
   const [driver, setDriver] = useState('');
   const [routeFrom, setRouteFrom] = useState('');
@@ -242,26 +242,74 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
     setMapTarget(null);
   };
 
+  // Auxiliary function to find the last trip and highest arrival/departure KM for a specific vehicle
+  const getVehicleAutoFillData = (vId) => {
+    if (!vId) return { km: '', routeFrom: '' };
+    const vehicleTrips = Array.isArray(trips) ? trips.filter(t => String(t.vehicleId) === String(vId)) : [];
+
+    let maxKm = 0;
+    vehicleTrips.forEach(t => {
+      if (t.arrivalKm && Number(t.arrivalKm) > maxKm) maxKm = Number(t.arrivalKm);
+      if (t.departureKm && Number(t.departureKm) > maxKm) maxKm = Number(t.departureKm);
+    });
+
+    if (maxKm === 0) {
+      const vObj = vehicles.find(v => String(v.id) === String(vId));
+      if (vObj && vObj.lastOilChangeKm && Number(vObj.lastOilChangeKm) > 0) {
+        maxKm = Number(vObj.lastOilChangeKm);
+      }
+    }
+
+    let lastRoute = '';
+    if (vehicleTrips.length > 0) {
+      const sorted = [...vehicleTrips].sort((a, b) => {
+        const dateDiff = new Date(b.date) - new Date(a.date);
+        if (dateDiff !== 0) return dateDiff;
+        return (b.departureTime || '').localeCompare(a.departureTime || '');
+      });
+      lastRoute = sorted[0].routeTo || '';
+    } else if (lastTrip && String(lastTrip.vehicleId) === String(vId)) {
+      lastRoute = lastTrip.routeTo || '';
+    }
+
+    return {
+      km: maxKm > 0 ? String(maxKm) : '',
+      routeFrom: lastRoute
+    };
+  };
+
+  const handleSelectVehicle = (vId) => {
+    setSelectedVehicleId(vId);
+    if (!trip) {
+      const { km: autoKm, routeFrom: autoRouteFrom } = getVehicleAutoFillData(vId);
+      if (autoKm) setDepartureKm(autoKm);
+      if (autoRouteFrom) {
+        setRouteFrom(autoRouteFrom);
+        geocodeTextSilently(autoRouteFrom, 'from');
+      }
+    }
+  };
+
   // Initialize form fields when editing or opening
   useEffect(() => {
     if (trip) {
-      setDate(trip.date || '');
-      setDriver(trip.driver || (currentUser ? currentUser.name : ''));
-      setRouteFrom(trip.routeFrom || '');
-      setRouteTo(trip.routeTo || '');
-      setDepartureTime(trip.departureTime || '');
-      setDepartureKm(trip.departureKm || '');
-      setArrivalTime(trip.arrivalTime || '');
-      setArrivalKm(trip.arrivalKm || '');
+      setDate(trip.date ?? '');
+      setDriver(trip.driver ?? (currentUser ? currentUser.name : ''));
+      setRouteFrom(trip.routeFrom ?? '');
+      setRouteTo(trip.routeTo ?? '');
+      setDepartureTime(trip.departureTime ?? '');
+      setDepartureKm((trip.departureKm !== null && trip.departureKm !== undefined) ? trip.departureKm : '');
+      setArrivalTime(trip.arrivalTime ?? '');
+      setArrivalKm((trip.arrivalKm !== null && trip.arrivalKm !== undefined) ? trip.arrivalKm : '');
       setIsPartial(!!trip.isPartial);
 
-      setSelectedVehicleId(trip.vehicleId || '');
+      setSelectedVehicleId(trip.vehicleId ?? '');
 
       if (trip.refuelKm || trip.refuelLiters || trip.fuelType) {
         setHasRefuel(true);
-        setRefuelKm(trip.refuelKm || '');
-        setRefuelLiters(trip.refuelLiters || '');
-        setFuelType(trip.fuelType || '');
+        setRefuelKm((trip.refuelKm !== null && trip.refuelKm !== undefined) ? trip.refuelKm : '');
+        setRefuelLiters((trip.refuelLiters !== null && trip.refuelLiters !== undefined) ? trip.refuelLiters : '');
+        setFuelType(trip.fuelType ?? '');
       } else {
         setHasRefuel(false);
         setRefuelKm('');
@@ -273,21 +321,25 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       const today = new Date().toISOString().split('T')[0];
       setDate(today);
       setDriver(currentUser ? currentUser.name : (lastTrip ? lastTrip.driver : ''));
-      setRouteFrom(lastTrip ? lastTrip.routeTo : '');
+
+      const targetVId = activeVehicleId || (vehicles.length > 0 ? vehicles[0].id : '');
+      setSelectedVehicleId(targetVId);
+
+      const { km: autoKm, routeFrom: autoRouteFrom } = getVehicleAutoFillData(targetVId);
+      setDepartureKm(autoKm);
+      setRouteFrom(autoRouteFrom);
       setRouteTo('');
       setDepartureTime('');
-      setDepartureKm(lastTrip ? lastTrip.arrivalKm : '0');
       setArrivalTime('');
       setArrivalKm('');
       setIsPartial(false);
 
-      if (lastTrip && lastTrip.routeTo) {
-        geocodeTextSilently(lastTrip.routeTo, 'from');
+      if (autoRouteFrom) {
+        geocodeTextSilently(autoRouteFrom, 'from');
       }
       setFromCoords(null);
       setToCoords(null);
       setEstimatedKm(null);
-      setSelectedVehicleId(activeVehicleId || '');
       setShowQuickVehicle(false);
       setNewVName('');
       setNewVPlate('');
@@ -299,7 +351,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       setNewVehicleObs('');
     }
     setError('');
-  }, [trip, lastTrip, isOpen, activeVehicleId, currentUser]);
+  }, [trip, lastTrip, isOpen, activeVehicleId, currentUser, trips]);
 
   const handleSaveShortcutObs = async () => {
     if (!newVehicleObs.trim() || !selectedVehicleId) return;
@@ -396,6 +448,10 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       }
     }
 
+    const km_rodados = (!isPartial && arrKm !== null && arrKm >= depKm)
+      ? Number((arrKm - depKm).toFixed(2))
+      : 0;
+
     const payload = {
       vehicleId: selectedVehicleId,
       date,
@@ -406,6 +462,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       departureKm: depKm,
       arrivalTime: isPartial ? (arrivalTime || '') : arrivalTime,
       arrivalKm: arrKm,
+      km_rodados,
       refuelKm: hasRefuel ? Number(Number(refuelKm).toFixed(2)) : null,
       refuelLiters: hasRefuel ? Number(Number(refuelLiters).toFixed(2)) : null,
       fuelType: hasRefuel ? fuelType : '',
@@ -455,7 +512,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                     <select 
                       className="form-control" 
                       value={selectedVehicleId} 
-                      onChange={(e) => setSelectedVehicleId(e.target.value)}
+                      onChange={(e) => handleSelectVehicle(e.target.value)}
                       required
                       style={
                         selectedVehicleId && parseVehicleObservations(vehicles.find(v => v.id === selectedVehicleId)?.obs).length > 0
@@ -579,7 +636,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                 <input
                   type="date"
                   className="form-control"
-                  value={date}
+                  value={date ?? ''}
                   onChange={(e) => setDate(e.target.value)}
                   required
                 />
@@ -590,7 +647,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                 <input
                   type="text"
                   className="form-control"
-                  value={driver || (currentUser ? currentUser.name : '')}
+                  value={(driver || (currentUser ? currentUser.name : '')) ?? ''}
                   onChange={(e) => setDriver(e.target.value)}
                   placeholder="Nome do condutor"
                   required
@@ -645,7 +702,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                   type="text"
                   className="form-control"
                   placeholder="Ex: Candelária, Natal/RN"
-                  value={routeFrom}
+                  value={routeFrom ?? ''}
                   onChange={(e) => {
                     setRouteFrom(e.target.value);
                     setFromCoords(null);
@@ -682,7 +739,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                   type="text"
                   className="form-control"
                   placeholder="Ex: Centro, Caicó/RN"
-                  value={routeTo}
+                  value={routeTo ?? ''}
                   onChange={(e) => {
                     setRouteTo(e.target.value);
                     setToCoords(null);
@@ -697,7 +754,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                 <input
                   type="time"
                   className="form-control"
-                  value={departureTime}
+                  value={departureTime ?? ''}
                   onChange={(e) => setDepartureTime(e.target.value)}
                   required
                 />
@@ -710,7 +767,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                   step="any"
                   className="form-control"
                   placeholder="Ex: 125400"
-                  value={departureKm}
+                  value={departureKm ?? ''}
                   onChange={(e) => setDepartureKm(e.target.value)}
                   required
                 />
@@ -721,7 +778,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                 <input
                   type="time"
                   className="form-control"
-                  value={arrivalTime}
+                  value={arrivalTime ?? ''}
                   onChange={(e) => setArrivalTime(e.target.value)}
                   required={!isPartial}
                 />
@@ -734,7 +791,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                   step="any"
                   className="form-control"
                   placeholder="Ex: 125680"
-                  value={arrivalKm}
+                  value={arrivalKm ?? ''}
                   onChange={(e) => setArrivalKm(e.target.value)}
                   required={!isPartial}
                 />
@@ -771,7 +828,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                       step="any"
                       className="form-control"
                       placeholder="Ex: 125550"
-                      value={refuelKm}
+                      value={refuelKm ?? ''}
                       onChange={(e) => setRefuelKm(e.target.value)}
                       required={hasRefuel}
                     />
@@ -784,7 +841,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                       step="0.01"
                       className="form-control"
                       placeholder="Ex: 35.5"
-                      value={refuelLiters}
+                      value={refuelLiters ?? ''}
                       onChange={(e) => setRefuelLiters(e.target.value)}
                       required={hasRefuel}
                     />
