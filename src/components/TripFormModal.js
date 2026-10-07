@@ -13,6 +13,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
   const [arrivalTime, setArrivalTime] = useState('');
   const [arrivalKm, setArrivalKm] = useState('');
   const [isPartial, setIsPartial] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Shortcut Vehicle Observation state
   const [newVehicleObs, setNewVehicleObs] = useState('');
@@ -351,6 +352,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       setNewVehicleObs('');
     }
     setError('');
+    setIsSubmitting(false);
   }, [trip, lastTrip, isOpen, activeVehicleId, currentUser, trips]);
 
   const handleSaveShortcutObs = async () => {
@@ -373,6 +375,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError('');
 
     const effectiveDriver = driver || (currentUser ? currentUser.name : '');
@@ -469,7 +472,12 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       isPartial: isPartial
     };
 
-    onSubmit(payload);
+    setIsSubmitting(true);
+    try {
+      await onSubmit(payload);
+    } catch (err) {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -880,9 +888,15 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
           </div>
 
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-            <button type="submit" className="btn btn-primary">
-              {typeof window !== 'undefined' && !navigator.onLine ? 'Salvar Viagem (Offline)' : 'Salvar Viagem'}
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isSubmitting}>Cancelar</button>
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Loader2 size={14} style={{ animation: 'spin 1s infinite linear' }} /> Salvando...
+                </span>
+              ) : (
+                typeof window !== 'undefined' && !navigator.onLine ? 'Salvar Viagem (Offline)' : 'Salvar Viagem'
+              )}
             </button>
           </div>
         </form>

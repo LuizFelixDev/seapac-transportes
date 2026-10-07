@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getTrips, addTrip } from '@/lib/db';
+import { getTrips, addTrip, updateTrip } from '@/lib/db';
 import { getSessionUser } from '@/lib/session';
 
 export async function GET() {
@@ -69,6 +69,35 @@ export async function POST(request) {
     const refuelKm = body.refuelKm !== undefined && body.refuelKm !== null && body.refuelKm !== ''
       ? Number(Number(body.refuelKm).toFixed(2))
       : body.refuelKm;
+
+    // Deduplication check: check if an identical or matching pending trip already exists
+    const existingTrips = await getTrips();
+    const existingTrip = existingTrips.find(t => 
+      String(t.vehicleId) === String(body.vehicleId) &&
+      t.date === body.date &&
+      t.driver === body.driver &&
+      t.departureTime === body.departureTime &&
+      Number(t.departureKm) === Number(departureKm) &&
+      t.routeFrom === body.routeFrom
+    );
+
+    if (existingTrip) {
+      // If existing trip was pending (partial) and new payload is completed, update existing trip
+      if (existingTrip.isPartial && !isPartial) {
+        const updated = await updateTrip(existingTrip.id, {
+          ...existingTrip,
+          ...body,
+          departureKm,
+          arrivalKm,
+          km_rodados,
+          refuelKm,
+          isPartial: false
+        });
+        return NextResponse.json(updated, { status: 200 });
+      }
+      // If identical trip already exists, return existing trip without creating a duplicate
+      return NextResponse.json(existingTrip, { status: 200 });
+    }
 
     const newTrip = await addTrip({
       ...body,
