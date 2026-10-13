@@ -122,6 +122,13 @@ async function ensureSchema() {
       );
     `;
 
+    // Vincular posto de combustível ao abastecimento da viagem
+    await sql`
+      ALTER TABLE trips
+      ADD COLUMN IF NOT EXISTS "gasStationId" TEXT,
+      ADD COLUMN IF NOT EXISTS "gasStationName" TEXT;
+    `;
+
     // Remover coluna signature caso ainda exista na tabela
     await sql`
       ALTER TABLE trips 
@@ -269,12 +276,14 @@ export async function addTrip(trip) {
     INSERT INTO trips (
       id, "vehicleId", date, driver, "routeFrom", "routeTo", 
       "departureTime", "departureKm", "arrivalTime", "arrivalKm", "km_rodados",
-      "refuelKm", "refuelLiters", "fuelType", "isPartial", "createdBy"
+      "refuelKm", "refuelLiters", "fuelType", "isPartial", "createdBy",
+      "gasStationId", "gasStationName"
     )
     VALUES (
       ${id}, ${trip.vehicleId}, ${trip.date}, ${trip.driver}, ${trip.routeFrom}, ${trip.routeTo || null},
       ${trip.departureTime}, ${departureKm}, ${trip.arrivalTime || null}, ${arrivalKm}, ${km_rodados},
-      ${refuelKm}, ${refuelLiters}, ${trip.fuelType || ''}, ${isPartial}, ${createdBy}
+      ${refuelKm}, ${refuelLiters}, ${trip.fuelType || ''}, ${isPartial}, ${createdBy},
+      ${trip.gasStationId || null}, ${trip.gasStationName || null}
     )
   `;
   
@@ -319,6 +328,8 @@ export async function updateTrip(id, updatedTrip) {
         "refuelKm" = ${refuelKm},
         "refuelLiters" = ${refuelLiters},
         "fuelType" = ${updatedTrip.fuelType || ''},
+        "gasStationId" = ${updatedTrip.gasStationId || null},
+        "gasStationName" = ${updatedTrip.gasStationName || null},
         "isPartial" = ${isPartial}
     WHERE id = ${id}
     RETURNING *

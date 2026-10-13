@@ -1429,7 +1429,14 @@ export default function Dashboard() {
             <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '95px' }} onClick={() => setIsDriverModalOpen(true)}>
               <Users size={14} /> Condutores
             </button>
-            <button id="btn-gas-stations" className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '80px' }} onClick={() => setIsGasStationModalOpen(true)}>
+            <button
+              id="btn-gas-stations"
+              className="btn btn-secondary"
+              style={{ flex: 1, padding: '0.5rem', minWidth: '80px', opacity: user?.role === 'adm' ? 1 : 0.5, cursor: user?.role === 'adm' ? 'pointer' : 'not-allowed' }}
+              disabled={user?.role !== 'adm'}
+              title={user?.role === 'adm' ? 'Gerenciar postos' : 'Apenas administradores podem gerenciar postos'}
+              onClick={() => user?.role === 'adm' && setIsGasStationModalOpen(true)}
+            >
               <Fuel size={14} /> Postos
             </button>
             {user?.role === 'adm' && (
@@ -1519,7 +1526,7 @@ export default function Dashboard() {
 
       {/* GAS STATIONS MODAL */}
       <GasStationModal
-        isOpen={isGasStationModalOpen}
+        isOpen={isGasStationModalOpen && user?.role === 'adm'}
         onClose={() => setIsGasStationModalOpen(false)}
       />
 

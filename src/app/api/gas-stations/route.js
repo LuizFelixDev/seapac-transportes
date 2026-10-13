@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getGasStations, addGasStation, deleteGasStation } from '@/lib/db';
+import { isAdmin } from '@/lib/session';
+
+const forbidden = () =>
+  NextResponse.json({ error: 'Acesso negado. Apenas administradores podem gerenciar postos.' }, { status: 403 });
 
 export async function GET() {
   try {
@@ -12,6 +16,7 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    if (!(await isAdmin())) return forbidden();
     const body = await request.json();
     if (!body.name) {
       return NextResponse.json({ error: 'Nome do posto é obrigatório.' }, { status: 400 });
@@ -25,6 +30,7 @@ export async function POST(request) {
 
 export async function DELETE(request) {
   try {
+    if (!(await isAdmin())) return forbidden();
     const id = new URL(request.url).searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'ID é obrigatório.' }, { status: 400 });
     const ok = await deleteGasStation(id);
