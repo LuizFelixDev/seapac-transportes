@@ -126,7 +126,9 @@ async function ensureSchema() {
     await sql`
       ALTER TABLE trips
       ADD COLUMN IF NOT EXISTS "gasStationId" TEXT,
-      ADD COLUMN IF NOT EXISTS "gasStationName" TEXT;
+      ADD COLUMN IF NOT EXISTS "gasStationName" TEXT,
+      ADD COLUMN IF NOT EXISTS "fuelUnitPrice" NUMERIC(10, 3),
+      ADD COLUMN IF NOT EXISTS "fuelCost" NUMERIC(10, 2);
     `;
 
     // Remover coluna signature caso ainda exista na tabela
@@ -232,7 +234,9 @@ export async function getTrips() {
       ? Number(t.km_rodados) 
       : ((t.arrivalKm && t.departureKm) ? Number((Number(t.arrivalKm) - Number(t.departureKm)).toFixed(2)) : 0),
     refuelLiters: t.refuelLiters ? Number(t.refuelLiters) : null,
-    refuelKm: t.refuelKm ? Number(t.refuelKm) : null
+    refuelKm: t.refuelKm ? Number(t.refuelKm) : null,
+    fuelUnitPrice: t.fuelUnitPrice !== null && t.fuelUnitPrice !== undefined ? Number(t.fuelUnitPrice) : null,
+    fuelCost: t.fuelCost !== null && t.fuelCost !== undefined ? Number(t.fuelCost) : null
   }));
 }
 
@@ -251,10 +255,30 @@ export async function getTripById(id) {
         ? Number(t.km_rodados) 
         : ((t.arrivalKm && t.departureKm) ? Number((Number(t.arrivalKm) - Number(t.departureKm)).toFixed(2)) : 0),
       refuelLiters: t.refuelLiters ? Number(t.refuelLiters) : null,
-      refuelKm: t.refuelKm ? Number(t.refuelKm) : null
+      refuelKm: t.refuelKm ? Number(t.refuelKm) : null,
+      fuelUnitPrice: t.fuelUnitPrice !== null && t.fuelUnitPrice !== undefined ? Number(t.fuelUnitPrice) : null,
+      fuelCost: t.fuelCost !== null && t.fuelCost !== undefined ? Number(t.fuelCost) : null
     };
   }
   return null;
+}
+
+// Calcula o preço do combustível: litros x preço do litro (álcool/gasolina) do posto selecionado
+async function computeFuelCost(db, trip, refuelLiters) {
+  if (!refuelLiters || !trip.fuelType || !trip.gasStationId) {
+    return { fuelUnitPrice: null, fuelCost: null };
+  }
+  let unitPrice = Number(trip.fuelUnitPrice);
+  if (!unitPrice || unitPrice <= 0) {
+    const rows = await db`SELECT "gasolinePrice", "ethanolPrice" FROM gas_stations WHERE id = ${trip.gasStationId}`;
+    if (rows.length === 0) return { fuelUnitPrice: null, fuelCost: null };
+    unitPrice = Number(trip.fuelType === 'A' ? rows[0].ethanolPrice : rows[0].gasolinePrice);
+  }
+  if (!unitPrice) return { fuelUnitPrice: null, fuelCost: null };
+  return {
+    fuelUnitPrice: Number(unitPrice.toFixed(3)),
+    fuelCost: Number((refuelLiters * unitPrice).toFixed(2))
+  };
 }
 
 export async function addTrip(trip) {
@@ -271,19 +295,20 @@ export async function addTrip(trip) {
   const refuelLiters = trip.refuelLiters ? Number(trip.refuelLiters) : null;
   const isPartial = !!trip.isPartial;
   const createdBy = trip.createdBy || null;
+  const { fuelUnitPrice, fuelCost } = await computeFuelCost(db, trip, refuelLiters);
   
   await db`
     INSERT INTO trips (
       id, "vehicleId", date, driver, "routeFrom", "routeTo", 
       "departureTime", "departureKm", "arrivalTime", "arrivalKm", "km_rodados",
       "refuelKm", "refuelLiters", "fuelType", "isPartial", "createdBy",
-      "gasStationId", "gasStationName"
+      "gasStationId", "gasStationName", "fuelUnitPrice", "fuelCost"
     )
     VALUES (
       ${id}, ${trip.vehicleId}, ${trip.date}, ${trip.driver}, ${trip.routeFrom}, ${trip.routeTo || null},
       ${trip.departureTime}, ${departureKm}, ${trip.arrivalTime || null}, ${arrivalKm}, ${km_rodados},
       ${refuelKm}, ${refuelLiters}, ${trip.fuelType || ''}, ${isPartial}, ${createdBy},
-      ${trip.gasStationId || null}, ${trip.gasStationName || null}
+      ${trip.gasStationId || null}, ${trip.gasStationName || null}, ${fuelUnitPrice}, ${fuelCost}
     )
   `;
   
@@ -296,7 +321,9 @@ export async function addTrip(trip) {
     refuelKm,
     refuelLiters,
     isPartial,
-    createdBy
+    createdBy,
+    fuelUnitPrice,
+    fuelCost
   };
 }
 
@@ -312,6 +339,7 @@ export async function updateTrip(id, updatedTrip) {
   const refuelKm = updatedTrip.refuelKm ? Number(updatedTrip.refuelKm) : null;
   const refuelLiters = updatedTrip.refuelLiters ? Number(updatedTrip.refuelLiters) : null;
   const isPartial = !!updatedTrip.isPartial;
+  const { fuelUnitPrice, fuelCost } = await computeFuelCost(db, updatedTrip, refuelLiters);
   
   const result = await db`
     UPDATE trips
@@ -330,6 +358,8 @@ export async function updateTrip(id, updatedTrip) {
         "fuelType" = ${updatedTrip.fuelType || ''},
         "gasStationId" = ${updatedTrip.gasStationId || null},
         "gasStationName" = ${updatedTrip.gasStationName || null},
+        "fuelUnitPrice" = ${fuelUnitPrice},
+        "fuelCost" = ${fuelCost},
         "isPartial" = ${isPartial}
     WHERE id = ${id}
     RETURNING *
@@ -343,7 +373,9 @@ export async function updateTrip(id, updatedTrip) {
       arrivalKm: t.arrivalKm ? Number(t.arrivalKm) : null,
       km_rodados: Number(t.km_rodados),
       refuelLiters: t.refuelLiters ? Number(t.refuelLiters) : null,
-      refuelKm: t.refuelKm ? Number(t.refuelKm) : null
+      refuelKm: t.refuelKm ? Number(t.refuelKm) : null,
+      fuelUnitPrice: t.fuelUnitPrice !== null && t.fuelUnitPrice !== undefined ? Number(t.fuelUnitPrice) : null,
+      fuelCost: t.fuelCost !== null && t.fuelCost !== undefined ? Number(t.fuelCost) : null
     };
   }
   return null;

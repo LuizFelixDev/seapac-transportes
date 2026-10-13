@@ -496,8 +496,13 @@ export default function Dashboard() {
     let estimatedCost = 0;
     filteredTrips.forEach(t => {
       if (t.refuelLiters) {
-        const rate = t.fuelType === 'A' ? 4.20 : 5.90;
-        estimatedCost += Number(t.refuelLiters) * rate;
+        // Usa o preço real calculado pelo posto; se não houver, estima pela tabela padrão
+        if (t.fuelCost) {
+          estimatedCost += Number(t.fuelCost);
+        } else {
+          const rate = t.fuelType === 'A' ? 4.20 : 5.90;
+          estimatedCost += Number(t.refuelLiters) * rate;
+        }
       }
     });
 
@@ -784,7 +789,9 @@ export default function Dashboard() {
       'KM Rodado',
       'KM Abastecimento', 
       'Quantidade Litros', 
-      'Tipo Combustivel'
+      'Tipo Combustivel',
+      'Posto',
+      'Preco Combustivel (R$)'
     ];
 
     // CSV Rows
@@ -802,7 +809,9 @@ export default function Dashboard() {
         : '',
       t.refuelKm || '',
       t.refuelLiters || '',
-      t.fuelType || ''
+      t.fuelType || '',
+      t.gasStationName || '',
+      t.fuelCost ? Number(t.fuelCost).toFixed(2) : ''
     ]);
 
     const csvContent = '\uFEFF' + [
@@ -1183,13 +1192,14 @@ export default function Dashboard() {
                 <th style={{ width: '80px' }}>Rodados</th>
                 <th style={{ width: '120px' }}>Refil (KM / L)</th>
                 <th style={{ width: '60px' }}>A/G</th>
+                <th style={{ width: '110px' }}>Preço Comb.</th>
                 <th className="actions-header" style={{ width: '90px', textAlign: 'center' }}>Ações</th>
               </tr>
             </thead>
             <tbody>
               {currentTrips.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="empty-state">
+                  <td colSpan={12} className="empty-state">
                     {isFetchingData ? 'Carregando dados das viagens...' : 'Nenhuma viagem registrada com os filtros selecionados.'}
                   </td>
                 </tr>
@@ -1272,6 +1282,16 @@ export default function Dashboard() {
                           </span>
                         ) : (
                           '-'
+                        )}
+                      </td>
+                      <td>
+                        {t.fuelCost ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.75rem' }} title={t.gasStationName ? `Posto: ${t.gasStationName}` : ''}>
+                            <strong>{Number(t.fuelCost).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                            {t.gasStationName && <span style={{ color: 'hsl(var(--muted-foreground))' }}>{t.gasStationName}</span>}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'hsl(var(--muted-foreground))' }}>-</span>
                         )}
                       </td>
                       <td className="actions-cell" style={{ textAlign: 'center' }}>

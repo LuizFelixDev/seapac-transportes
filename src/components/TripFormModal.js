@@ -36,6 +36,20 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       .catch((err) => console.error('Erro ao carregar postos:', err));
   }, [hasRefuel]);
 
+  // Preço do litro: mantém o preço gravado na viagem (edição) se posto/combustível não mudaram;
+  // caso contrário usa o preço atual do posto selecionado
+  const selectedStation = gasStations.find((s) => s.id === gasStationId);
+  const keepStoredPrice = trip && trip.fuelUnitPrice && trip.gasStationId === gasStationId && trip.fuelType === fuelType;
+  const fuelUnitPrice = keepStoredPrice
+    ? Number(trip.fuelUnitPrice)
+    : (selectedStation && fuelType
+        ? Number(fuelType === 'A' ? selectedStation.ethanolPrice : selectedStation.gasolinePrice)
+        : null);
+  const fuelCost = fuelUnitPrice && Number(refuelLiters) > 0
+    ? Number((Number(refuelLiters) * fuelUnitPrice).toFixed(2))
+    : null;
+  const formatBRL = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
   // Map and Geolocation fields
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [mapTarget, setMapTarget] = useState(null); // 'from' or 'to'
@@ -487,6 +501,8 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       gasStationName: hasRefuel && gasStationId
         ? (gasStations.find((s) => s.id === gasStationId)?.name || trip?.gasStationName || null)
         : null,
+      fuelUnitPrice: hasRefuel ? fuelUnitPrice : null,
+      fuelCost: hasRefuel ? fuelCost : null,
       isPartial: isPartial
     };
 
@@ -923,6 +939,24 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                         /> Álcool
                       </label>
                     </div>
+                  </div>
+
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label htmlFor="fuelCost">Preço do Combustível (calculado)</label>
+                    <input
+                      id="fuelCost"
+                      type="text"
+                      className="form-control"
+                      readOnly
+                      style={{ fontWeight: 700, backgroundColor: 'hsl(var(--muted))', cursor: 'default' }}
+                      value={fuelCost !== null ? formatBRL(fuelCost) : ''}
+                      placeholder="Selecione o posto, o combustível e os litros"
+                    />
+                    {fuelCost !== null && (
+                      <small style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>
+                        {Number(refuelLiters)} L × {formatBRL(fuelUnitPrice)}/L ({fuelType === 'A' ? 'Álcool' : 'Gasolina'})
+                      </small>
+                    )}
                   </div>
                 </>
               )}
