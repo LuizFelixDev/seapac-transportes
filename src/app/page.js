@@ -1192,6 +1192,7 @@ export default function Dashboard() {
                 <th style={{ width: '80px' }}>Rodados</th>
                 <th style={{ width: '120px' }}>Refil (KM / L)</th>
                 <th style={{ width: '60px' }}>A/G</th>
+                <th style={{ width: '120px' }}>Posto</th>
                 <th style={{ width: '110px' }}>Preço Comb.</th>
                 <th className="actions-header" style={{ width: '90px', textAlign: 'center' }}>Ações</th>
               </tr>
@@ -1199,7 +1200,7 @@ export default function Dashboard() {
             <tbody>
               {currentTrips.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="empty-state">
+                  <td colSpan={13} className="empty-state">
                     {isFetchingData ? 'Carregando dados das viagens...' : 'Nenhuma viagem registrada com os filtros selecionados.'}
                   </td>
                 </tr>
@@ -1284,12 +1285,18 @@ export default function Dashboard() {
                           '-'
                         )}
                       </td>
+                      <td style={{ fontSize: '0.8rem' }}>
+                        {t.gasStationName ? (
+                          <span style={{ fontWeight: 600 }}>{t.gasStationName}</span>
+                        ) : (
+                          <span style={{ color: 'hsl(var(--muted-foreground))' }}>-</span>
+                        )}
+                      </td>
                       <td>
                         {t.fuelCost ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.75rem' }} title={t.gasStationName ? `Posto: ${t.gasStationName}` : ''}>
-                            <strong>{Number(t.fuelCost).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
-                            {t.gasStationName && <span style={{ color: 'hsl(var(--muted-foreground))' }}>{t.gasStationName}</span>}
-                          </div>
+                          <strong style={{ fontSize: '0.8rem' }}>
+                            {Number(t.fuelCost).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </strong>
                         ) : (
                           <span style={{ color: 'hsl(var(--muted-foreground))' }}>-</span>
                         )}
