@@ -25,7 +25,8 @@ import {
   Percent,
   LogOut,
   Shield,
-  Droplet
+  Droplet,
+  Fuel
 } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
@@ -38,6 +39,7 @@ import PWAInstallButton from '@/components/PWAInstallButton';
 import VehicleObservationsModal from '@/components/VehicleObservationsModal';
 import OilChangeModal from '@/components/OilChangeModal';
 import OilControlDashboard from '@/components/OilControlDashboard';
+import GasStationModal from '@/components/GasStationModal';
 import { parseVehicleObservations, checkOilChangeStatus, createOilChangeRecord } from '@/lib/vehicleUtils';
 import { 
   savePendingTrip, 
@@ -67,6 +69,7 @@ export default function Dashboard() {
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [isGasStationModalOpen, setIsGasStationModalOpen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
@@ -1426,6 +1429,9 @@ export default function Dashboard() {
             <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '95px' }} onClick={() => setIsDriverModalOpen(true)}>
               <Users size={14} /> Condutores
             </button>
+            <button id="btn-gas-stations" className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '80px' }} onClick={() => setIsGasStationModalOpen(true)}>
+              <Fuel size={14} /> Postos
+            </button>
             {user?.role === 'adm' && (
               <button 
                 className="btn btn-secondary" 
@@ -1509,6 +1515,12 @@ export default function Dashboard() {
         drivers={drivers}
         onCreate={handleCreateDriver}
         onDelete={handleDeleteDriver}
+      />
+
+      {/* GAS STATIONS MODAL */}
+      <GasStationModal
+        isOpen={isGasStationModalOpen}
+        onClose={() => setIsGasStationModalOpen(false)}
       />
 
       {/* USER MANAGEMENT MODAL */}

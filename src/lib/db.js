@@ -111,6 +111,17 @@ async function ensureSchema() {
       WHERE "arrivalKm" IS NOT NULL AND "departureKm" IS NOT NULL AND ("km_rodados" IS NULL OR "km_rodados" = 0);
     `;
 
+    // Criar tabela de postos de combustível
+    await sql`
+      CREATE TABLE IF NOT EXISTS gas_stations (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        location TEXT,
+        "gasolinePrice" NUMERIC(10, 3) DEFAULT 0,
+        "ethanolPrice" NUMERIC(10, 3) DEFAULT 0
+      );
+    `;
+
     // Remover coluna signature caso ainda exista na tabela
     await sql`
       ALTER TABLE trips 
@@ -571,4 +582,38 @@ export async function updateLoginRequestStatus(id, status) {
   `;
   
   return result.length > 0 ? result[0] : null;
+}
+
+// ==================== POSTOS DE COMBUSTÍVEL ====================
+function mapStation(r) {
+  return {
+    ...r,
+    gasolinePrice: Number(r.gasolinePrice) || 0,
+    ethanolPrice: Number(r.ethanolPrice) || 0,
+  };
+}
+
+export async function getGasStations() {
+  await ensureSchema();
+  const sql = getClient();
+  const rows = await sql`SELECT * FROM gas_stations ORDER BY name ASC`;
+  return rows.map(mapStation);
+}
+
+export async function addGasStation(data) {
+  await ensureSchema();
+  const sql = getClient();
+  const id = crypto.randomUUID();
+  const rows = await sql`
+    INSERT INTO gas_stations (id, name, location, "gasolinePrice", "ethanolPrice")
+    VALUES (${id}, ${data.name}, ${data.location || ''}, ${Number(data.gasolinePrice) || 0}, ${Number(data.ethanolPrice) || 0})
+    RETURNING *`;
+  return mapStation(rows[0]);
+}
+
+export async function deleteGasStation(id) {
+  await ensureSchema();
+  const sql = getClient();
+  const rows = await sql`DELETE FROM gas_stations WHERE id = ${id} RETURNING id`;
+  return rows.length > 0;
 }
