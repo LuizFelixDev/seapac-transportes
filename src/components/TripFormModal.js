@@ -23,7 +23,32 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
   const [refuelKm, setRefuelKm] = useState('');
   const [refuelLiters, setRefuelLiters] = useState('');
   const [fuelType, setFuelType] = useState('');
+  const [gasStationId, setGasStationId] = useState('');
+  const [gasStations, setGasStations] = useState([]);
   const [error, setError] = useState('');
+
+  // Load registered gas stations when refuel section is enabled
+  useEffect(() => {
+    if (!hasRefuel || gasStations.length > 0) return;
+    fetch('/api/gas-stations')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setGasStations(Array.isArray(data) ? data : []))
+      .catch((err) => console.error('Erro ao carregar postos:', err));
+  }, [hasRefuel]);
+
+  // Preço do litro: mantém o preço gravado na viagem (edição) se posto/combustível não mudaram;
+  // caso contrário usa o preço atual do posto selecionado
+  const selectedStation = gasStations.find((s) => s.id === gasStationId);
+  const keepStoredPrice = trip && trip.fuelUnitPrice && trip.gasStationId === gasStationId && trip.fuelType === fuelType;
+  const fuelUnitPrice = keepStoredPrice
+    ? Number(trip.fuelUnitPrice)
+    : (selectedStation && fuelType
+        ? Number(fuelType === 'A' ? selectedStation.ethanolPrice : selectedStation.gasolinePrice)
+        : null);
+  const fuelCost = fuelUnitPrice && Number(refuelLiters) > 0
+    ? Number((Number(refuelLiters) * fuelUnitPrice).toFixed(2))
+    : null;
+  const formatBRL = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   // Map and Geolocation fields
   const [isMapOpen, setIsMapOpen] = useState(false);
@@ -311,11 +336,13 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
         setRefuelKm((trip.refuelKm !== null && trip.refuelKm !== undefined) ? trip.refuelKm : '');
         setRefuelLiters((trip.refuelLiters !== null && trip.refuelLiters !== undefined) ? trip.refuelLiters : '');
         setFuelType(trip.fuelType ?? '');
+        setGasStationId(trip.gasStationId ?? '');
       } else {
         setHasRefuel(false);
         setRefuelKm('');
         setRefuelLiters('');
         setFuelType('');
+        setGasStationId('');
       }
     } else {
       // Set defaults for new trip
@@ -349,6 +376,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       setRefuelKm('');
       setRefuelLiters('');
       setFuelType('');
+      setGasStationId('');
       setNewVehicleObs('');
     }
     setError('');
@@ -469,6 +497,12 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
       refuelKm: hasRefuel ? Number(Number(refuelKm).toFixed(2)) : null,
       refuelLiters: hasRefuel ? Number(Number(refuelLiters).toFixed(2)) : null,
       fuelType: hasRefuel ? fuelType : '',
+      gasStationId: hasRefuel && gasStationId ? gasStationId : null,
+      gasStationName: hasRefuel && gasStationId
+        ? (gasStations.find((s) => s.id === gasStationId)?.name || trip?.gasStationName || null)
+        : null,
+      fuelUnitPrice: hasRefuel ? fuelUnitPrice : null,
+      fuelCost: hasRefuel ? fuelCost : null,
       isPartial: isPartial
     };
 
@@ -829,6 +863,31 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                 <>
                   <div className="section-subtitle-form">Dados do Abastecimento</div>
 
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label htmlFor="gasStationId">Posto de Combustível</label>
+                    <select
+                      id="gasStationId"
+                      className="form-control"
+                      value={gasStationId}
+                      onChange={(e) => setGasStationId(e.target.value)}
+                    >
+                      <option value="">Selecione o posto...</option>
+                      {gasStationId && !gasStations.some((s) => s.id === gasStationId) && (
+                        <option value={gasStationId}>{trip?.gasStationName || 'Posto removido'}</option>
+                      )}
+                      {gasStations.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}{s.location ? ` — ${s.location}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {gasStations.length === 0 && (
+                      <small style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>
+                        Nenhum posto cadastrado. Peça a um administrador para cadastrar.
+                      </small>
+                    )}
+                  </div>
+
                   <div className="form-group">
                     <label>KM Abastecimento *</label>
                     <input
@@ -880,6 +939,24 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                         /> Álcool
                       </label>
                     </div>
+                  </div>
+
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label htmlFor="fuelCost">Preço do Combustível (calculado)</label>
+                    <input
+                      id="fuelCost"
+                      type="text"
+                      className="form-control"
+                      readOnly
+                      style={{ fontWeight: 700, backgroundColor: 'hsl(var(--muted))', cursor: 'default' }}
+                      value={fuelCost !== null ? formatBRL(fuelCost) : ''}
+                      placeholder="Selecione o posto, o combustível e os litros"
+                    />
+                    {fuelCost !== null && (
+                      <small style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>
+                        {Number(refuelLiters)} L × {formatBRL(fuelUnitPrice)}/L ({fuelType === 'A' ? 'Álcool' : 'Gasolina'})
+                      </small>
+                    )}
                   </div>
                 </>
               )}

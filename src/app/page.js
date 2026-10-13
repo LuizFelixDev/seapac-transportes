@@ -25,7 +25,8 @@ import {
   Percent,
   LogOut,
   Shield,
-  Droplet
+  Droplet,
+  Fuel
 } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
@@ -38,6 +39,7 @@ import PWAInstallButton from '@/components/PWAInstallButton';
 import VehicleObservationsModal from '@/components/VehicleObservationsModal';
 import OilChangeModal from '@/components/OilChangeModal';
 import OilControlDashboard from '@/components/OilControlDashboard';
+import GasStationModal from '@/components/GasStationModal';
 import { parseVehicleObservations, checkOilChangeStatus, createOilChangeRecord } from '@/lib/vehicleUtils';
 import { 
   savePendingTrip, 
@@ -67,6 +69,7 @@ export default function Dashboard() {
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [isGasStationModalOpen, setIsGasStationModalOpen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
@@ -493,8 +496,13 @@ export default function Dashboard() {
     let estimatedCost = 0;
     filteredTrips.forEach(t => {
       if (t.refuelLiters) {
-        const rate = t.fuelType === 'A' ? 4.20 : 5.90;
-        estimatedCost += Number(t.refuelLiters) * rate;
+        // Usa o preço real calculado pelo posto; se não houver, estima pela tabela padrão
+        if (t.fuelCost) {
+          estimatedCost += Number(t.fuelCost);
+        } else {
+          const rate = t.fuelType === 'A' ? 4.20 : 5.90;
+          estimatedCost += Number(t.refuelLiters) * rate;
+        }
       }
     });
 
@@ -781,7 +789,9 @@ export default function Dashboard() {
       'KM Rodado',
       'KM Abastecimento', 
       'Quantidade Litros', 
-      'Tipo Combustivel'
+      'Tipo Combustivel',
+      'Posto',
+      'Preco Combustivel (R$)'
     ];
 
     // CSV Rows
@@ -799,7 +809,9 @@ export default function Dashboard() {
         : '',
       t.refuelKm || '',
       t.refuelLiters || '',
-      t.fuelType || ''
+      t.fuelType || '',
+      t.gasStationName || '',
+      t.fuelCost ? Number(t.fuelCost).toFixed(2) : ''
     ]);
 
     const csvContent = '\uFEFF' + [
@@ -1180,13 +1192,15 @@ export default function Dashboard() {
                 <th style={{ width: '80px' }}>Rodados</th>
                 <th style={{ width: '120px' }}>Refil (KM / L)</th>
                 <th style={{ width: '60px' }}>A/G</th>
+                <th style={{ width: '120px' }}>Posto</th>
+                <th style={{ width: '110px' }}>Preço Comb.</th>
                 <th className="actions-header" style={{ width: '90px', textAlign: 'center' }}>Ações</th>
               </tr>
             </thead>
             <tbody>
               {currentTrips.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="empty-state">
+                  <td colSpan={13} className="empty-state">
                     {isFetchingData ? 'Carregando dados das viagens...' : 'Nenhuma viagem registrada com os filtros selecionados.'}
                   </td>
                 </tr>
@@ -1269,6 +1283,22 @@ export default function Dashboard() {
                           </span>
                         ) : (
                           '-'
+                        )}
+                      </td>
+                      <td style={{ fontSize: '0.8rem' }}>
+                        {t.gasStationName ? (
+                          <span style={{ fontWeight: 600 }}>{t.gasStationName}</span>
+                        ) : (
+                          <span style={{ color: 'hsl(var(--muted-foreground))' }}>-</span>
+                        )}
+                      </td>
+                      <td>
+                        {t.fuelCost ? (
+                          <strong style={{ fontSize: '0.8rem' }}>
+                            {Number(t.fuelCost).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </strong>
+                        ) : (
+                          <span style={{ color: 'hsl(var(--muted-foreground))' }}>-</span>
                         )}
                       </td>
                       <td className="actions-cell" style={{ textAlign: 'center' }}>
@@ -1426,6 +1456,16 @@ export default function Dashboard() {
             <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', minWidth: '95px' }} onClick={() => setIsDriverModalOpen(true)}>
               <Users size={14} /> Condutores
             </button>
+            <button
+              id="btn-gas-stations"
+              className="btn btn-secondary"
+              style={{ flex: 1, padding: '0.5rem', minWidth: '80px', opacity: user?.role === 'adm' ? 1 : 0.5, cursor: user?.role === 'adm' ? 'pointer' : 'not-allowed' }}
+              disabled={user?.role !== 'adm'}
+              title={user?.role === 'adm' ? 'Gerenciar postos' : 'Apenas administradores podem gerenciar postos'}
+              onClick={() => user?.role === 'adm' && setIsGasStationModalOpen(true)}
+            >
+              <Fuel size={14} /> Postos
+            </button>
             {user?.role === 'adm' && (
               <button 
                 className="btn btn-secondary" 
@@ -1509,6 +1549,12 @@ export default function Dashboard() {
         drivers={drivers}
         onCreate={handleCreateDriver}
         onDelete={handleDeleteDriver}
+      />
+
+      {/* GAS STATIONS MODAL */}
+      <GasStationModal
+        isOpen={isGasStationModalOpen && user?.role === 'adm'}
+        onClose={() => setIsGasStationModalOpen(false)}
       />
 
       {/* USER MANAGEMENT MODAL */}
