@@ -868,7 +868,8 @@ export default function Dashboard() {
       <header className="app-header glass">
         <div className="brand-section">
           <div className="logo-icon">
-            <Car size={24} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/logo-seapac.png" alt="Logo SEAPAC" />
           </div>
           <div className="brand-info">
             <h1>SEAPAC Transportes</h1>
