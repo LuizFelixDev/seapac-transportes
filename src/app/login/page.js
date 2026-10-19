@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Car, Mail, User, ShieldAlert, Loader2, LogIn, ChevronDown } from 'lucide-react';
 
@@ -11,6 +11,8 @@ export default function Login() {
   const [hasClientId, setHasClientId] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [showDirectForm, setShowDirectForm] = useState(false);
+  const gsiInitializedRef = useRef(false);
+  const handleGoogleLoginRef = useRef(null);
 
   // States for the direct Google / email login form
   const [mockName, setMockName] = useState('');
@@ -53,12 +55,18 @@ export default function Login() {
   useEffect(() => {
     if (hasClientId && scriptLoaded && window.google) {
       try {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleGoogleLogin,
-          auto_select: false,
-          use_fedcm: false,
-        });
+        // initialize() + prompt() must run only once: calling initialize() again
+        // aborts the pending FedCM request ("FedCM get() rejects with AbortError").
+        if (!gsiInitializedRef.current) {
+          gsiInitializedRef.current = true;
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: (response) => handleGoogleLoginRef.current?.(response),
+            auto_select: false,
+            use_fedcm_for_prompt: true,
+          });
+          window.google.accounts.id.prompt();
+        }
 
         const container = document.getElementById('google-btn-container');
         if (container) {
@@ -74,8 +82,6 @@ export default function Login() {
             }
           );
         }
-
-        window.google.accounts.id.prompt();
 
         // Check after 1.5s if Google button iframe rendered. If not (e.g. unallowed origin on localhost), reveal direct login form automatically
         const timer = setTimeout(() => {
@@ -135,6 +141,10 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    handleGoogleLoginRef.current = handleGoogleLogin;
+  });
 
   // Handle Direct / Manual Login flow
   const handleMockLogin = async (e) => {
