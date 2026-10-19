@@ -40,6 +40,7 @@ import VehicleObservationsModal from '@/components/VehicleObservationsModal';
 import OilChangeModal from '@/components/OilChangeModal';
 import OilControlDashboard from '@/components/OilControlDashboard';
 import GasStationModal from '@/components/GasStationModal';
+import FuelMiniDashboards from '@/components/FuelMiniDashboards';
 import { parseVehicleObservations, checkOilChangeStatus, createOilChangeRecord } from '@/lib/vehicleUtils';
 import { 
   savePendingTrip, 
@@ -70,6 +71,7 @@ export default function Dashboard() {
   const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isGasStationModalOpen, setIsGasStationModalOpen] = useState(false);
+  const [gasStationsVersion, setGasStationsVersion] = useState(0);
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
@@ -868,7 +870,8 @@ export default function Dashboard() {
       <header className="app-header glass">
         <div className="brand-section">
           <div className="logo-icon">
-            <Car size={24} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/logo-seapac.png" alt="Logo SEAPAC" />
           </div>
           <div className="brand-info">
             <h1>SEAPAC Transportes</h1>
@@ -1120,6 +1123,13 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* FUEL MINI DASHBOARDS (scrollable) */}
+      <FuelMiniDashboards
+        vehicles={vehicles}
+        trips={trips}
+        refreshKey={gasStationsVersion}
+      />
 
       {/* SEARCH AND FILTERS BAR */}
       <div className="controls-bar glass">
@@ -1554,7 +1564,7 @@ export default function Dashboard() {
       {/* GAS STATIONS MODAL */}
       <GasStationModal
         isOpen={isGasStationModalOpen && user?.role === 'adm'}
-        onClose={() => setIsGasStationModalOpen(false)}
+        onClose={() => { setIsGasStationModalOpen(false); setGasStationsVersion((v) => v + 1); }}
       />
 
       {/* USER MANAGEMENT MODAL */}

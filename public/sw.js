@@ -1,11 +1,13 @@
-const CACHE_NAME = 'seapac-pwa-v5';
+const CACHE_NAME = 'seapac-pwa-v6';
 const STATIC_ASSETS = [
   '/',
   '/login',
   '/manifest.json',
   '/favicon.ico',
+  '/icons/logo-seapac.png',
   '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  '/icons/icon-512.png',
+  '/icons/apple-touch-icon.png'
 ];
 
 /**
