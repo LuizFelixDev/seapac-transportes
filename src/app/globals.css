@@ -245,6 +245,329 @@ header.app-header {
   }
 }
 
+/* ===== Compact fuel mini-dashboards (scrollable) ===== */
+.mini-dash-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+@media (min-width: 900px) {
+  .mini-dash-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.mini-dash {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.mini-dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.mini-dash-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.mini-dash-title h2 {
+  font-size: 0.98rem;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.mini-dash-title p {
+  font-size: 0.7rem;
+  color: hsl(var(--muted-foreground));
+  font-weight: 600;
+  margin: 0;
+}
+
+.mini-dash-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  color: hsl(var(--primary));
+  background: rgba(var(--primary-rgb), 0.12);
+}
+
+.mini-dash-icon.accent {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.14);
+}
+
+.mini-dash-pill {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  color: hsl(var(--primary));
+  background: rgba(var(--primary-rgb), 0.1);
+  border: 1px solid rgba(var(--primary-rgb), 0.2);
+}
+
+.mini-dash-legend {
+  display: flex;
+  gap: 0.9rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+.mini-dash-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.mini-dash-legend .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot.gasoline, .seg.gasoline { background: #3b82f6; }
+.dot.ethanol, .seg.ethanol { background: #22c55e; }
+
+/* Scroll area */
+.mini-dash-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.3rem 0 0;
+  max-height: 230px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+  padding-bottom: 10px;
+}
+
+.mini-dash-list::-webkit-scrollbar { width: 6px; }
+.mini-dash-list::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 6px;
+}
+.mini-dash-list::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
+
+.mini-dash-empty {
+  text-align: center;
+  padding: 1.5rem 0.5rem;
+  font-size: 0.8rem;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Liters rows */
+.mini-dash-row {
+  padding: 0.5rem 0.6rem;
+  border-radius: 9px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.mini-dash-row:hover,
+.mini-dash-station:hover {
+  transform: translateX(2px);
+  border-color: rgba(var(--primary-rgb), 0.35);
+}
+
+.mini-dash-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.mini-dash-row-name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+.mini-dash-row-name strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-dash-row-name .rank {
+  font-size: 0.65rem;
+  font-weight: 800;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted));
+}
+
+.mini-dash-row-name .plate {
+  font-family: monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0 0.35rem;
+  border-radius: 4px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  flex-shrink: 0;
+}
+
+.mini-dash-value {
+  font-size: 0.85rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.mini-dash-bar {
+  height: 6px;
+  border-radius: 4px;
+  background: hsl(var(--muted));
+  overflow: hidden;
+}
+
+.mini-dash-bar-fill {
+  height: 100%;
+  display: flex;
+  border-radius: 4px;
+  overflow: hidden;
+  transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.mini-dash-bar-fill .seg { height: 100%; }
+
+.mini-dash-row-sub {
+  margin-top: 0.3rem;
+  font-size: 0.66rem;
+  color: hsl(var(--muted-foreground));
+  font-weight: 600;
+}
+
+/* Gas station rows */
+.mini-dash-table-head,
+.mini-dash-station {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px 92px;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mini-dash-table-head {
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: hsl(var(--muted-foreground));
+  padding: 0 0.9rem 0 0.6rem;
+}
+
+.mini-dash-table-head span:not(:first-child) { text-align: right; }
+
+.mini-dash-station {
+  padding: 0.5rem 0.6rem;
+  border-radius: 9px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.station-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.station-info strong {
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.station-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.66rem;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.station-tip {
+  font-size: 0.62rem;
+  font-weight: 700;
+  width: fit-content;
+  padding: 0 0.35rem;
+  border-radius: 4px;
+}
+
+.station-tip.ethanol { color: #15803d; background: rgba(34, 197, 94, 0.12); }
+.station-tip.gasoline { color: #1d4ed8; background: rgba(59, 130, 246, 0.12); }
+
+.mini-dash-station .price {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.mini-dash-station .price.gasoline { color: #2563eb; }
+.mini-dash-station .price.ethanol { color: #16a34a; }
+
+.mini-dash-station .price.best {
+  padding: 0.1rem 0.3rem;
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.14);
+}
+
+.mini-dash-station .price.best svg { color: #f59e0b; }
+
+@media (max-width: 480px) {
+  .mini-dash-table-head,
+  .mini-dash-station {
+    grid-template-columns: minmax(0, 1fr) 78px 78px;
+  }
+  .mini-dash-station .price { font-size: 0.74rem; }
+}
+
+
 .section-card {
   padding: 1.5rem;
   border-radius: var(--radius);
@@ -826,7 +1149,8 @@ table.data-table tbody tr:hover {
   /* Hide UI elements */
   .app-header, 
   .dashboard-grid, 
-  .charts-grid, 
+  .charts-grid,
+  .mini-dash-grid,
   .controls-bar, 
   .pagination,
   .modal-overlay,
