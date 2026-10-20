@@ -1,7 +1,29 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Fuel, MapPin, Droplets, Trophy } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Fuel, MapPin, Droplets, Trophy, CalendarDays, ChevronDown, Check } from 'lucide-react';
+
+const PERIODS = [
+  { key: 'daily', label: 'Diário', desc: 'Abastecido hoje' },
+  { key: 'weekly', label: 'Semanal', desc: 'Últimos 7 dias' },
+  { key: 'monthly', label: 'Mensal', desc: 'Mês atual' },
+  { key: 'all', label: 'Geral', desc: 'Total abastecido na frota' },
+];
+
+const ymd = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+function periodStart(period) {
+  const now = new Date();
+  if (period === 'daily') return ymd(now);
+  if (period === 'weekly') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 6);
+    return ymd(d);
+  }
+  if (period === 'monthly') return ymd(new Date(now.getFullYear(), now.getMonth(), 1));
+  return null;
+}
 
 const brl = (v) =>
   Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 3, maximumFractionDigits: 3 });
@@ -15,6 +37,24 @@ const liters = (v) => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractio
 export default function FuelMiniDashboards({ vehicles = [], trips = [], refreshKey = 0 }) {
   const [stations, setStations] = useState([]);
   const [stationsStatus, setStationsStatus] = useState('loading'); // loading | ok | error
+  const [period, setPeriod] = useState('all');
+  const [periodOpen, setPeriodOpen] = useState(false);
+  const periodRef = useRef(null);
+  const currentPeriod = PERIODS.find((p) => p.key === period);
+
+  useEffect(() => {
+    if (!periodOpen) return;
+    const onDown = (e) => {
+      if (periodRef.current && !periodRef.current.contains(e.target)) setPeriodOpen(false);
+    };
+    const onKey = (e) => e.key === 'Escape' && setPeriodOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [periodOpen]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -50,9 +90,15 @@ export default function FuelMiniDashboards({ vehicles = [], trips = [], refreshK
     (Array.isArray(vehicles) ? vehicles : []).forEach((v) =>
       map.set(String(v.id), { vehicle: v, total: 0, gasoline: 0, ethanol: 0, refuels: 0 })
     );
+    const start = periodStart(period);
+    const today = ymd(new Date());
     (Array.isArray(trips) ? trips : []).forEach((t) => {
       const l = Number(t.refuelLiters);
       if (!l || l <= 0) return;
+      if (start) {
+        const d = String(t.date || '').slice(0, 10);
+        if (!d || d < start || d > today) return;
+      }
       const entry = map.get(String(t.vehicleId));
       if (!entry) return;
       entry.total += l;
@@ -61,7 +107,7 @@ export default function FuelMiniDashboards({ vehicles = [], trips = [], refreshK
       else entry.gasoline += l;
     });
     return [...map.values()].sort((a, b) => b.total - a.total);
-  }, [vehicles, trips]);
+  }, [vehicles, trips, period]);
 
   const fleetTotal = litersByVehicle.reduce((s, e) => s + e.total, 0);
   const maxLiters = litersByVehicle[0]?.total || 0;
@@ -83,10 +129,48 @@ export default function FuelMiniDashboards({ vehicles = [], trips = [], refreshK
             <span className="mini-dash-icon"><Droplets size={16} /></span>
             <div>
               <h2 id="mini-dash-liters-title">Litros por Veículo</h2>
-              <p>Total abastecido na frota</p>
+              <p>{currentPeriod.desc}</p>
             </div>
           </div>
-          <span className="mini-dash-pill">{liters(fleetTotal)}</span>
+          <div className="mini-dash-actions">
+            <span className="mini-dash-pill">{liters(fleetTotal)}</span>
+            <div className="period-filter" ref={periodRef}>
+              <button
+                type="button"
+                id="liters-period-filter-btn"
+                className={`period-filter-btn ${periodOpen ? 'open' : ''}`}
+                aria-haspopup="listbox"
+                aria-expanded={periodOpen}
+                onClick={() => setPeriodOpen((o) => !o)}
+              >
+                <CalendarDays size={13} />
+                {currentPeriod.label}
+                <ChevronDown size={13} className="chev" />
+              </button>
+              {periodOpen && (
+                <ul className="period-filter-menu" role="listbox">
+                  {PERIODS.map((p) => (
+                    <li key={p.key}>
+                      <button
+                        type="button"
+                        id={`liters-period-${p.key}`}
+                        role="option"
+                        aria-selected={p.key === period}
+                        className={p.key === period ? 'active' : ''}
+                        onClick={() => {
+                          setPeriod(p.key);
+                          setPeriodOpen(false);
+                        }}
+                      >
+                        <span>{p.label}</span>
+                        {p.key === period && <Check size={13} />}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </header>
 
         <div className="mini-dash-legend">
