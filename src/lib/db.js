@@ -281,6 +281,19 @@ async function computeFuelCost(db, trip, refuelLiters) {
   };
 }
 
+// Atualiza o preço por litro no cadastro do posto quando o usuário alterou o valor na viagem
+async function syncStationPrice(db, trip) {
+  if (!trip.updateStationPrice || !trip.gasStationId) return;
+  const price = Number(trip.fuelUnitPrice);
+  if (!price || price <= 0) return;
+  const value = Number(price.toFixed(3));
+  if (trip.fuelType === 'A') {
+    await db`UPDATE gas_stations SET "ethanolPrice" = ${value} WHERE id = ${trip.gasStationId}`;
+  } else {
+    await db`UPDATE gas_stations SET "gasolinePrice" = ${value} WHERE id = ${trip.gasStationId}`;
+  }
+}
+
 export async function addTrip(trip) {
   await ensureSchema();
   const db = getClient();
@@ -296,6 +309,7 @@ export async function addTrip(trip) {
   const isPartial = !!trip.isPartial;
   const createdBy = trip.createdBy || null;
   const { fuelUnitPrice, fuelCost } = await computeFuelCost(db, trip, refuelLiters);
+  await syncStationPrice(db, trip);
   
   await db`
     INSERT INTO trips (
@@ -340,6 +354,7 @@ export async function updateTrip(id, updatedTrip) {
   const refuelLiters = updatedTrip.refuelLiters ? Number(updatedTrip.refuelLiters) : null;
   const isPartial = !!updatedTrip.isPartial;
   const { fuelUnitPrice, fuelCost } = await computeFuelCost(db, updatedTrip, refuelLiters);
+  await syncStationPrice(db, updatedTrip);
   
   const result = await db`
     UPDATE trips
