@@ -29,22 +29,31 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
 
   // Load registered gas stations when refuel section is enabled
   useEffect(() => {
-    if (!hasRefuel || gasStations.length > 0) return;
+    if (!hasRefuel || !isOpen) return;
     fetch('/api/gas-stations')
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => setGasStations(Array.isArray(data) ? data : []))
       .catch((err) => console.error('Erro ao carregar postos:', err));
-  }, [hasRefuel]);
+  }, [hasRefuel, isOpen]);
 
   // Preço do litro: mantém o preço gravado na viagem (edição) se posto/combustível não mudaram;
   // caso contrário usa o preço atual do posto selecionado
   const selectedStation = gasStations.find((s) => s.id === gasStationId);
   const keepStoredPrice = trip && trip.fuelUnitPrice && trip.gasStationId === gasStationId && trip.fuelType === fuelType;
-  const fuelUnitPrice = keepStoredPrice
-    ? Number(trip.fuelUnitPrice)
-    : (selectedStation && fuelType
-        ? Number(fuelType === 'A' ? selectedStation.ethanolPrice : selectedStation.gasolinePrice)
-        : null);
+  // Preço cadastrado no posto para o combustível selecionado (gasolina por padrão)
+  const stationPrice = selectedStation
+    ? Number(fuelType === 'A' ? selectedStation.ethanolPrice : selectedStation.gasolinePrice) || null
+    : null;
+  const defaultUnitPrice = keepStoredPrice ? Number(trip.fuelUnitPrice) : stationPrice;
+
+  // Valor por litro editável; volta ao padrão sempre que posto/combustível mudam
+  const [unitPriceInput, setUnitPriceInput] = useState('');
+  useEffect(() => {
+    setUnitPriceInput(defaultUnitPrice ? String(defaultUnitPrice) : '');
+  }, [gasStationId, fuelType, defaultUnitPrice]);
+
+  const fuelUnitPrice = Number(unitPriceInput) > 0 ? Number(Number(unitPriceInput).toFixed(3)) : null;
+  const priceChangedFromStation = !!(selectedStation && fuelUnitPrice && fuelUnitPrice !== Number(Number(stationPrice || 0).toFixed(3)));
   const fuelCost = fuelUnitPrice && Number(refuelLiters) > 0
     ? Number((Number(refuelLiters) * fuelUnitPrice).toFixed(2))
     : null;
@@ -503,6 +512,7 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
         : null,
       fuelUnitPrice: hasRefuel ? fuelUnitPrice : null,
       fuelCost: hasRefuel ? fuelCost : null,
+      updateStationPrice: hasRefuel && priceChangedFromStation,
       isPartial: isPartial
     };
 
@@ -887,6 +897,33 @@ export default function TripFormModal({ isOpen, onClose, onSubmit, trip, lastTri
                       </small>
                     )}
                   </div>
+
+                  {gasStationId && (
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label htmlFor="fuelUnitPrice">
+                        Valor por Litro {fuelType === 'A' ? '(Álcool)' : '(Gasolina)'} — R$
+                      </label>
+                      <input
+                        id="fuelUnitPrice"
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        className="form-control"
+                        placeholder="Ex: 6.290"
+                        value={unitPriceInput}
+                        onChange={(e) => setUnitPriceInput(e.target.value)}
+                      />
+                      {priceChangedFromStation ? (
+                        <small style={{ color: '#b45309', fontSize: '0.75rem', fontWeight: 600 }}>
+                          O valor cadastrado no posto ({stationPrice ? formatBRL(stationPrice) : 'não informado'}) será atualizado para {formatBRL(fuelUnitPrice)} ao salvar a viagem.
+                        </small>
+                      ) : (
+                        <small style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>
+                          Valor cadastrado no posto. Altere se o preço mudou — o posto será atualizado ao salvar.
+                        </small>
+                      )}
+                    </div>
+                  )}
 
                   <div className="form-group">
                     <label>KM Abastecimento *</label>
